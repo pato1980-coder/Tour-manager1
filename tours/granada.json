@@ -1,0 +1,80 @@
+{
+  "id": "granada",
+  "city": "Granada",
+  "country": "España",
+  "emoji": "🕌",
+  "title": "Granada · Tour",
+  "header": "🕌 GRANADA · 9h–15h",
+  "startTime": "09:00",
+  "center": [37.1773, -3.5986],
+  "zoom": 15,
+  "duration": "6h",
+  "stops": [
+    {
+      "name": "Alhambra · Palacios Nazaríes",
+      "time": "09:00",
+      "dur": "150 min · 19€",
+      "stayMin": 150,
+      "desc": "La fortaleza-palacio nazarí más bella del mundo islámico (s.XIII–XIV). Reserva online obligatoria. Llega 15 min antes. El Patio de los Leones es único.",
+      "lat": 37.1761,
+      "lng": -3.5881,
+      "tags": [{"t":"s.XIII","c":""},{"t":"UNESCO","c":"b"},{"t":"19€","c":"b"}],
+      "wiki": "https://es.wikipedia.org/wiki/Alhambra"
+    },
+    {
+      "name": "Generalife · Jardines",
+      "time": "11:30",
+      "dur": "45 min · incluido",
+      "stayMin": 45,
+      "desc": "El palacio de verano y jardines de los sultanes nazaríes, contiguo a la Alhambra. La acequia central y los cipreses milenarios son inolvidables.",
+      "lat": 37.1779,
+      "lng": -3.5852,
+      "tags": [{"t":"jardines","c":"g"},{"t":"incluido","c":"g"},{"t":"UNESCO","c":"b"}],
+      "wiki": "https://es.wikipedia.org/wiki/Generalife"
+    },
+    {
+      "name": "Mirador de San Nicolás",
+      "time": "12:30",
+      "dur": "30 min · gratis",
+      "stayMin": 30,
+      "desc": "El mirador más famoso de España: la Alhambra con la sierra Nevada nevada al fondo. Mejor a primera hora o al atardecer. Músicos callejeros permanentes.",
+      "lat": 37.1810,
+      "lng": -3.5950,
+      "tags": [{"t":"gratis","c":"g"},{"t":"vistas","c":""},{"t":"imprescindible","c":"b"}],
+      "wiki": "https://es.wikipedia.org/wiki/Mirador_de_San_Nicol%C3%A1s"
+    },
+    {
+      "name": "Albaicín · Callejuelas",
+      "time": "13:10",
+      "dur": "40 min · gratis",
+      "stayMin": 40,
+      "desc": "Barrio morisco medieval declarado UNESCO. Callejuelas empedradas, casas con patios (cármenes) y la mejor tapa de Granada en sus bares.",
+      "lat": 37.1805,
+      "lng": -3.5965,
+      "tags": [{"t":"gratis","c":"g"},{"t":"UNESCO","c":"b"},{"t":"medieval","c":""}],
+      "wiki": "https://es.wikipedia.org/wiki/Albaic%C3%ADn"
+    },
+    {
+      "name": "Catedral y Capilla Real",
+      "time": "14:00",
+      "dur": "45 min · 5€",
+      "stayMin": 45,
+      "desc": "La Capilla Real alberga los sarcófagos de los Reyes Católicos, Juana la Loca y Felipe el Hermoso. La catedral renacentista es la segunda más grande de España.",
+      "lat": 37.1762,
+      "lng": -3.5994,
+      "tags": [{"t":"Reyes Católicos","c":""},{"t":"5€","c":"b"},{"t":"renacentismo","c":""}],
+      "wiki": "https://es.wikipedia.org/wiki/Catedral_de_Granada"
+    },
+    {
+      "name": "Almuerzo · Tapas gratis",
+      "time": "14:55",
+      "dur": "60 min · con bebida",
+      "stayMin": 60,
+      "desc": "Granada es la única ciudad de España donde la tapa es gratis con la bebida. Barrio de San Matías o calle Navas. Pide una caña y elige tu tapa.",
+      "lat": 37.1757,
+      "lng": -3.5985,
+      "tags": [{"t":"tapas gratis","c":"g"},{"t":"tradición","c":""},{"t":"imprescindible","c":"b"}],
+      "wiki": "https://es.wikipedia.org/wiki/Tapa_(aperitivo)"
+    }
+  ]
+}

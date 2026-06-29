@@ -1,0 +1,80 @@
+{
+  "id": "segovia",
+  "city": "Segovia",
+  "country": "España",
+  "emoji": "🏰",
+  "title": "Segovia · Tour",
+  "header": "🏰 SEGOVIA · 9h–14h",
+  "startTime": "09:00",
+  "center": [40.9505, -4.126],
+  "zoom": 15,
+  "duration": "5h",
+  "stops": [
+    {
+      "name": "Acueducto de Segovia",
+      "time": "09:00",
+      "dur": "30 min · gratis",
+      "stayMin": 30,
+      "desc": "La obra de ingeniería romana más impresionante de España, construida en el s.I d.C. sin cemento. Arranca desde la Plaza del Azoguejo para la mejor perspectiva.",
+      "lat": 40.9481,
+      "lng": -4.1183,
+      "tags": [{"t":"gratis","c":"g"},{"t":"s.I d.C.","c":""},{"t":"imprescindible","c":"b"}],
+      "wiki": "https://es.wikipedia.org/wiki/Acueducto_de_Segovia"
+    },
+    {
+      "name": "Iglesia de San Martín",
+      "time": "09:35",
+      "dur": "15 min · gratis",
+      "stayMin": 15,
+      "desc": "Hermosa iglesia románica del s.XII en pleno centro histórico. Galería porticada única y plaza con la estatua de Juan Bravo.",
+      "lat": 40.9504,
+      "lng": -4.1225,
+      "tags": [{"t":"s.XII","c":""},{"t":"románico","c":""},{"t":"gratis","c":"g"}],
+      "wiki": "https://es.wikipedia.org/wiki/Iglesia_de_San_Mart%C3%ADn_(Segovia)"
+    },
+    {
+      "name": "Catedral de Segovia",
+      "time": "09:55",
+      "dur": "45 min · 4€",
+      "stayMin": 45,
+      "desc": "Última catedral gótica de España (s.XVI), apodada 'La Dama de las Catedrales'. Interior con claustro, museo y vistas desde la torre. Abre 9:30.",
+      "lat": 40.9516,
+      "lng": -4.1259,
+      "tags": [{"t":"s.XVI","c":""},{"t":"gótico","c":""},{"t":"4€","c":"b"}],
+      "wiki": "https://es.wikipedia.org/wiki/Catedral_de_Segovia"
+    },
+    {
+      "name": "Alcázar de Segovia",
+      "time": "10:50",
+      "dur": "60 min · 8€",
+      "stayMin": 60,
+      "desc": "El castillo más fotogénico de España, inspiró el de la Cenicienta. S.XI con vistas espectaculares sobre la sierra y los dos ríos.",
+      "lat": 40.9527,
+      "lng": -4.1302,
+      "tags": [{"t":"s.XI","c":""},{"t":"8€","c":"b"},{"t":"icónico","c":""}],
+      "wiki": "https://es.wikipedia.org/wiki/Alc%C3%A1zar_de_Segovia"
+    },
+    {
+      "name": "Mirador Pradera de San Marcos",
+      "time": "12:00",
+      "dur": "15 min · gratis",
+      "stayMin": 15,
+      "desc": "La mejor vista del Alcázar desde abajo. Bajada de 10 min desde el castillo. El ángulo clásico con el castillo sobre la roca y los dos ríos.",
+      "lat": 40.9506,
+      "lng": -4.1349,
+      "tags": [{"t":"gratis","c":"g"},{"t":"vistas","c":""}],
+      "wiki": "https://es.wikipedia.org/wiki/Alc%C3%A1zar_de_Segovia"
+    },
+    {
+      "name": "Almuerzo · Cochinillo",
+      "time": "12:30",
+      "dur": "90 min · almuerzo",
+      "stayMin": 90,
+      "desc": "Segovia es la capital del cochinillo asado. Mesón de Cándido (junto al acueducto), José María (el más famoso) o La Concepción. Llega antes de las 13h.",
+      "lat": 40.9498,
+      "lng": -4.1195,
+      "tags": [{"t":"cochinillo","c":""},{"t":"imprescindible","c":"b"}],
+      "wiki": "https://es.wikipedia.org/wiki/Cochinillo_asado"
+    }
+  ]
+}
