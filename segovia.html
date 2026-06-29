@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Segovia · Tour</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--b:#5bb8f5;--g:#5edd8a;--r:#e06060;--p:#b07ef5;--seen:#3a8a5c;--mo:'Courier New',monospace}
+html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overflow:hidden;color:#e8e6df}
+#map{position:fixed;inset:0;z-index:0}
+
+/* TOP */
+#top{position:fixed;top:env(safe-area-inset-top,0);left:0;right:0;z-index:100;
+  display:flex;align-items:center;gap:8px;padding:10px 12px;
+  background:linear-gradient(to bottom,rgba(10,12,18,.95),transparent);pointer-events:none}
+#top>*{pointer-events:all}
+#top-title{font-family:var(--mo);font-size:11px;color:rgba(255,255,255,.55);flex:1;letter-spacing:.05em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fab{width:38px;height:38px;border-radius:50%;background:rgba(11,14,22,.9);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
+.fab:active{transform:scale(.9)}
+.fab.on{background:var(--b);color:#0a0c12;border-color:transparent}
+.fab.gon{background:var(--g);color:#0a0c12;border-color:transparent}
+
+/* NAV PANEL — turn by turn */
+#navp{position:fixed;top:0;left:0;right:0;z-index:300;
+  background:rgba(10,12,18,.97);
+  transform:translateY(-110%);
+  transition:transform .32s cubic-bezier(.4,0,.2,1);
+  padding-top:env(safe-area-inset-top,0);
+  backdrop-filter:blur(16px);
+  box-shadow:0 4px 30px rgba(0,0,0,.8)}
+#navp.open{transform:translateY(0)}
+#nav-x{position:absolute;top:calc(env(safe-area-inset-top,0px)+10px);right:48px;
+  background:none;border:none;color:rgba(255,255,255,.35);font-size:14px;cursor:pointer;font-family:var(--mo);padding:4px}
+#nav-nxt{position:absolute;top:calc(env(safe-area-inset-top,0px)+8px);right:8px;
+  background:rgba(94,221,138,.12);border:none;border-radius:8px;
+  color:var(--g);font-family:var(--mo);font-size:9px;font-weight:700;padding:5px 10px;cursor:pointer}
+#nav-main{display:flex;align-items:center;gap:12px;padding:calc(env(safe-area-inset-top,0px) + 44px) 16px 10px}
+#nav-arr{width:54px;height:54px;border-radius:14px;background:var(--b);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;transition:background .2s}
+#nav-txt{flex:1;min-width:0}
+#nav-ins{font-size:16px;font-weight:700;color:#fff;line-height:1.3;margin-bottom:2px}
+#nav-street{font-family:var(--mo);font-size:10px;color:rgba(255,255,255,.4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#nav-dist{font-family:var(--mo);font-size:22px;font-weight:700;color:var(--b);text-align:right;flex-shrink:0;min-width:58px}
+/* Upcoming steps */
+#nav-upcoming{max-height:80px;overflow-y:auto;padding:0 16px 6px;scrollbar-width:none}
+#nav-upcoming::-webkit-scrollbar{display:none}
+.nup{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:11px;color:rgba(255,255,255,.45)}
+.nup:last-child{border:none}
+.nup-ico{width:20px;height:20px;border-radius:5px;background:rgba(255,255,255,.07);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.nup-d{font-family:var(--mo);font-size:9px;color:var(--b);margin-left:auto;flex-shrink:0}
+/* Mode selector */
+#nav-modes{display:flex;gap:6px;padding:0 16px 8px}
+.nm{flex:1;padding:7px 4px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.4);font-family:var(--mo);font-size:9px;cursor:pointer;text-align:center;transition:all .15s}
+.nm.on{background:rgba(91,184,245,.15);color:var(--b);border-color:rgba(91,184,245,.3)}
+/* Stats bar */
+#nav-stats{display:flex;border-top:1px solid rgba(255,255,255,.07);padding:8px 16px 12px}
+.nst{flex:1;text-align:center}
+.nst-v{font-family:var(--mo);font-size:12px;font-weight:700;color:#fff}
+.nst-v.warn{color:var(--r)}
+.nst-l{font-family:var(--mo);font-size:7px;color:rgba(255,255,255,.3);margin-top:1px}
+
+/* REORDER PANEL */
+#reop{position:fixed;inset:0;z-index:400;background:rgba(10,12,18,.98);
+  transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column;backdrop-filter:blur(18px)}
+#reop.open{transform:translateY(0)}
+#reop-hd{display:flex;align-items:center;justify-content:space-between;
+  padding:calc(env(safe-area-inset-top,0px)+16px) 18px 14px;
+  border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0}
+#reop-hd h2{font-size:16px;font-weight:700;color:#fff}
+#reop-x{background:none;border:none;color:rgba(255,255,255,.4);font-size:22px;cursor:pointer;padding:4px}
+#reop-hint{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.3);padding:10px 18px 4px;flex-shrink:0}
+#reop-list{flex:1;overflow-y:auto;padding:4px 0;scrollbar-width:none}
+#reop-list::-webkit-scrollbar{display:none}
+.ritem{display:flex;align-items:center;gap:12px;padding:12px 18px;
+  border-bottom:1px solid rgba(255,255,255,.05);background:rgba(10,12,18,.98);
+  touch-action:none;transition:background .12s}
+.ritem.dragging{opacity:.45;background:rgba(91,184,245,.07)}
+.ritem.drag-over{border-top:2px solid var(--b)}
+.ritem-handle{font-size:20px;color:rgba(255,255,255,.2);cursor:grab;flex-shrink:0;padding:4px;user-select:none;touch-action:none}
+.ritem-n{width:26px;height:26px;border-radius:50%;background:var(--b);color:#0a0c12;
+  font-family:var(--mo);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ritem-info{flex:1;min-width:0}
+.ritem-name{font-size:13px;font-weight:600;color:#fff}
+.ritem-time{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.35);margin-top:2px}
+#reop-apply{margin:12px 18px calc(env(safe-area-inset-bottom,0px)+12px);
+  padding:14px;border-radius:10px;border:none;background:var(--b);color:#0a0c12;
+  font-family:var(--mo);font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;letter-spacing:.06em}
+
+/* TIMELINE */
+#bar{position:fixed;bottom:0;left:0;right:0;z-index:100;
+  background:linear-gradient(to top,rgba(10,12,18,.97) 65%,transparent);
+  padding:14px 0 calc(env(safe-area-inset-bottom,0px)+8px);
+  display:flex;align-items:center;overflow-x:auto;scrollbar-width:none}
+#bar::-webkit-scrollbar{display:none}
+.tl{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:60px;padding:2px 5px;cursor:pointer;flex-shrink:0}
+.tl-n{width:26px;height:26px;border-radius:50%;font-family:var(--mo);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid transparent;transition:all .2s}
+.tl-n.u{background:var(--b);color:#0a0c12}
+.tl-n.s{background:var(--seen);color:#fff}
+.tl-n.fi{background:var(--g);color:#0a0c12}
+.tl-n.la{background:#8a6a3a;color:#fff}
+.tl-lbl{font-family:var(--mo);font-size:7px;color:rgba(255,255,255,.35);text-align:center;max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-t{font-family:var(--mo);font-size:7px;color:var(--b);text-align:center}
+.tl-seg{width:12px;height:2px;background:rgba(255,255,255,.1);flex-shrink:0;align-self:center;margin-bottom:14px}
+.tl-seg.done{background:var(--seen)}
+
+/* BOTTOM SHEET */
+#sh{position:fixed;bottom:0;left:0;right:0;z-index:200;
+  background:rgba(11,14,22,.97);border-radius:18px 18px 0 0;
+  transform:translateY(110%);transition:transform .3s cubic-bezier(.4,0,.2,1);
+  max-height:72vh;display:flex;flex-direction:column;
+  backdrop-filter:blur(18px);box-shadow:0 -4px 40px rgba(0,0,0,.7)}
+#sh.open{transform:translateY(0)}
+#sh-handle{width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.2);margin:10px auto 0;cursor:pointer;flex-shrink:0}
+#sh-body{overflow-y:auto;padding:14px 18px calc(env(safe-area-inset-bottom,0px)+24px);flex:1;scrollbar-width:none}
+#sh-body::-webkit-scrollbar{display:none}
+.sh-n{font-family:var(--mo);font-size:9px;color:var(--b);letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px}
+.sh-nm{font-size:19px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:2px}
+.sh-tm{font-family:var(--mo);font-size:10px;color:var(--b);margin-bottom:8px}
+.sh-travel{display:none;font-family:var(--mo);font-size:10px;background:rgba(255,255,255,.04);border-radius:6px;padding:7px 10px;margin-bottom:10px;gap:6px;align-items:center;flex-wrap:wrap}
+.sh-travel.on{display:flex}
+.sh-tv{font-weight:700;color:var(--b)}
+.sh-tw{color:var(--r);font-weight:700}
+.sh-photo{width:100%;height:110px;border-radius:10px;overflow:hidden;margin-bottom:10px;display:none}
+.sh-photo.on{display:block}
+.sh-photo img{width:100%;height:100%;object-fit:cover}
+.sh-ds{font-size:13px;color:rgba(255,255,255,.55);line-height:1.65;margin-bottom:12px}
+.sh-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
+.tag{font-family:var(--mo);font-size:9px;padding:3px 7px;border-radius:3px;background:rgba(255,255,255,.07);color:rgba(255,255,255,.45)}
+.tag.g{background:rgba(94,221,138,.1);color:var(--g)}
+.tag.b{background:rgba(91,184,245,.12);color:var(--b)}
+.sh-row{display:flex;gap:8px;margin-bottom:8px}
+.btn{flex:1;padding:11px 8px;border-radius:9px;border:none;cursor:pointer;font-family:var(--mo);font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .12s}
+.btn:active{transform:scale(.95);opacity:.8}
+.btn-nav{background:var(--b);color:#0a0c12}
+.btn-seen{background:rgba(94,221,138,.1);color:var(--g)}
+.btn-seen.on{background:rgba(224,96,96,.1);color:var(--r)}
+.btn-wiki{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6)}
+.btn-reorder{background:rgba(176,126,245,.1);color:var(--p)}
+
+/* GPS marker */
+.gw{position:relative;width:44px;height:44px;display:flex;align-items:center;justify-content:center}
+.gr{position:absolute;width:38px;height:38px;border-radius:50%;background:rgba(91,184,245,.1);animation:rpl 2.4s ease-out infinite;pointer-events:none}
+.gb{width:13px;height:13px;border-radius:50%;background:var(--b);border:2.5px solid #fff;box-shadow:0 0 10px var(--b);z-index:2;position:relative}
+.gc{position:absolute;bottom:calc(50% + 5px);left:50%;margin-left:-5px;width:10px;height:16px;clip-path:polygon(50% 0%,0% 100%,100% 100%);background:linear-gradient(to top,var(--b),rgba(91,184,245,.2));transform-origin:center bottom;z-index:3;transition:transform .06s linear,opacity .2s;filter:drop-shadow(0 0 4px var(--b))}
+.gc.hid{opacity:0}
+@keyframes rpl{0%{box-shadow:0 0 0 0 rgba(91,184,245,.5)}70%{box-shadow:0 0 0 16px rgba(91,184,245,0)}100%{box-shadow:0 0 0 0 rgba(91,184,245,0)}}
+.mk{width:26px;height:26px;border-radius:50%;font-family:var(--mo);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.7);cursor:pointer;border:2px solid rgba(255,255,255,.2);transition:transform .12s}
+.mk:active{transform:scale(.85)}
+.mk.u{background:var(--b);color:#0a0c12}
+.mk.s{background:var(--seen);color:#fff}
+.mk.ac{background:#fff;color:#0a0c12;border-color:var(--b);box-shadow:0 0 0 3px rgba(91,184,245,.4)}
+.mk.fi{background:var(--g);color:#0a0c12}
+.mk.la{background:#8a6a3a;color:#fff}
+.leaflet-popup{display:none!important}
+
+/* Toast */
+#toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%) translateY(10px);z-index:9999;
+  background:rgba(20,26,44,.98);color:#fff;font-family:var(--mo);font-size:10px;
+  padding:8px 16px;border-radius:20px;opacity:0;transition:opacity .2s,transform .2s;
+  pointer-events:none;white-space:nowrap;box-shadow:0 2px 16px rgba(0,0,0,.6);max-width:90vw;overflow:hidden;text-overflow:ellipsis}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<!-- Top bar -->
+<div id="top">
+  <span id="top-title">🏰 SEGOVIA · 9h–14h</span>
+  <button class="fab on" id="fab-sat" onclick="toggleSat()">🛰</button>
+  <button class="fab" id="fab-gps" onclick="toggleGPS()">📍</button>
+  <button class="fab" id="fab-ctr" style="display:none" onclick="centerMe()">⊙</button>
+  <button class="fab" id="fab-reorder" onclick="openReorder()" style="background:rgba(176,126,245,.18);color:var(--p)">⇅</button>
+</div>
+
+<!-- Nav panel -->
+<div id="navp">
+  <button id="nav-x" onclick="closeNav()">✕ Cerrar</button>
+  <button id="nav-nxt" onclick="nextStop()">→ Sig.</button>
+  <div id="nav-main">
+    <div id="nav-arr">→</div>
+    <div id="nav-txt">
+      <div id="nav-ins">Calculando…</div>
+      <div id="nav-street"></div>
+    </div>
+    <div id="nav-dist">—</div>
+  </div>
+  <div id="nav-upcoming"></div>
+  <div id="nav-modes">
+    <button class="nm on" id="nm-foot"    onclick="setMode('foot')">🚶 A pie</button>
+    <button class="nm"    id="nm-transit" onclick="setMode('transit')">🚌 Bus</button>
+    <button class="nm"    id="nm-car"     onclick="setMode('car')">🚗 Coche</button>
+  </div>
+  <div id="nav-stats">
+    <div class="nst"><div class="nst-v" id="nv-eta">—</div><div class="nst-l">LLEGADA</div></div>
+    <div class="nst"><div class="nst-v" id="nv-rem">—</div><div class="nst-l">RESTANTE</div></div>
+    <div class="nst"><div class="nst-v" id="nv-tot">—</div><div class="nst-l">TOTAL</div></div>
+    <div class="nst"><div class="nst-v" id="nv-giros">—</div><div class="nst-l">GIROS</div></div>
+  </div>
+</div>
+
+<!-- Reorder panel -->
+<div id="reop">
+  <div id="reop-hd">
+    <h2>⇅ Cambiar orden</h2>
+    <button id="reop-x" onclick="closeReorder()">✕</button>
+  </div>
+  <div id="reop-hint">Arrastra ☰ para cambiar el orden de visita</div>
+  <div id="reop-list"></div>
+  <button id="reop-apply" onclick="applyReorder()">✓ Aplicar orden</button>
+</div>
+
+<!-- Sheet -->
+<div id="sh">
+  <div id="sh-handle" onclick="closeSh()"></div>
+  <div id="sh-body">
+    <div class="sh-n" id="sh-n"></div>
+    <div class="sh-nm" id="sh-nm"></div>
+    <div class="sh-tm" id="sh-tm"></div>
+    <div class="sh-travel" id="sh-travel">
+      <span id="sh-tv" class="sh-tv"></span>
+      <span id="sh-tw" class="sh-tw"></span>
+    </div>
+    <div class="sh-photo" id="sh-photo"><img id="sh-img" src="" alt=""></div>
+    <div class="sh-ds" id="sh-ds"></div>
+    <div class="sh-tags" id="sh-tags"></div>
+    <div class="sh-row">
+      <button class="btn btn-nav" onclick="startNav()">🧭 Ir aquí</button>
+      <button class="btn btn-seen" id="btn-seen" onclick="toggleSeen()">✓ Visto</button>
+    </div>
+    <div class="sh-row">
+      <button class="btn btn-wiki" onclick="goWiki()">📖 Wikipedia</button>
+      <button class="btn btn-reorder" onclick="openReorder()">⇅ Reordenar</button>
+    </div>
+  </div>
+</div>
+
+<div id="bar"></div>
+<div id="toast"></div>
+
+<script>
+/* ══ DATOS ══ */
+let STOPS = [
+  {n:1,name:"Acueducto de Segovia",time:"09:00",dur:"30 min · gratis",stayMin:30,
+   desc:"La obra de ingeniería romana más impresionante de España, construida en el s.I d.C. sin cemento. Arranca desde la Plaza del Azoguejo para la mejor perspectiva.",
+   lat:40.9481,lng:-4.1183,
+   tags:[{t:"gratis",c:"g"},{t:"s.I d.C.",c:""},{t:"imprescindible",c:"b"}],
+   wiki:"https://es.wikipedia.org/wiki/Acueducto_de_Segovia"},
+  {n:2,name:"Iglesia de San Martín",time:"09:35",dur:"15 min · gratis",stayMin:15,
+   desc:"Hermosa iglesia románica del s.XII en pleno centro histórico. Galería porticada única y plaza con la estatua de Juan Bravo.",
+   lat:40.9504,lng:-4.1225,
+   tags:[{t:"s.XII",c:""},{t:"románico",c:""},{t:"gratis",c:"g"}],
+   wiki:"https://es.wikipedia.org/wiki/Iglesia_de_San_Mart%C3%ADn_(Segovia)"},
+  {n:3,name:"Catedral de Segovia",time:"09:55",dur:"45 min · 4€",stayMin:45,
+   desc:"Última catedral gótica de España (s.XVI), apodada 'La Dama de las Catedrales'. Interior con claustro, museo y vistas desde la torre. Abre 9:30.",
+   lat:40.9516,lng:-4.1259,
+   tags:[{t:"s.XVI",c:""},{t:"gótico",c:""},{t:"4€",c:"b"}],
+   wiki:"https://es.wikipedia.org/wiki/Catedral_de_Segovia"},
+  {n:4,name:"Alcázar de Segovia",time:"10:50",dur:"60 min · 8€",stayMin:60,
+   desc:"El castillo más fotogénico de España, inspiró el de la Cenicienta. S.XI con vistas espectaculares sobre la sierra y los dos ríos.",
+   lat:40.9527,lng:-4.1302,
+   tags:[{t:"s.XI",c:""},{t:"8€",c:"b"},{t:"icónico",c:""}],
+   wiki:"https://es.wikipedia.org/wiki/Alc%C3%A1zar_de_Segovia"},
+  {n:5,name:"Mirador Pradera de San Marcos",time:"12:00",dur:"15 min · gratis",stayMin:15,
+   desc:"La mejor vista del Alcázar desde abajo. Bajada de 10 min desde el castillo. El ángulo clásico con el castillo sobre la roca y los dos ríos.",
+   lat:40.9506,lng:-4.1349,
+   tags:[{t:"gratis",c:"g"},{t:"vistas",c:""}],
+   wiki:"https://es.wikipedia.org/wiki/Alc%C3%A1zar_de_Segovia"},
+  {n:6,name:"Almuerzo · Cochinillo",time:"12:30",dur:"90 min · almuerzo",stayMin:90,
+   desc:"Segovia es la capital del cochinillo asado. Mesón de Cándido (junto al acueducto), José María (el más famoso) o La Concepción. Llega antes de las 13h.",
+   lat:40.9498,lng:-4.1195,
+   tags:[{t:"cochinillo",c:""},{t:"imprescindible",c:"b"}],
+   wiki:"https://es.wikipedia.org/wiki/Cochinillo_asado"}
+];
+
+/* ══ CONSTANTES ══ */
+const SPEED={foot:1.25,transit:5.5,car:8.5};
+const WAIT ={foot:0,  transit:180,  car:60};
+const MCOL ={foot:'#5bb8f5',transit:'#b07ef5',car:'#f5a623'};
+const MICO ={foot:'🚶',transit:'🚌',car:'🚗'};
+const TICO={'turn-left':'←','turn-right':'→','turn-sharp-left':'↰','turn-sharp-right':'↱','turn-slight-left':'↖','turn-slight-right':'↗','uturn':'↩','continue':'↑','depart':'🚦','arrive':'🏁','roundabout':'⟳','rotary':'⟳','end of road':'↑','new name':'↑','fork':'⑂','merge':'⤵'};
+const TES ={'turn-left':'Gira a la izquierda','turn-right':'Gira a la derecha','turn-sharp-left':'Giro cerrado izquierda','turn-sharp-right':'Giro cerrado derecha','turn-slight-left':'Dobla levemente izquierda','turn-slight-right':'Dobla levemente derecha','uturn':'Da la vuelta','continue':'Continúa recto','depart':'Sal de','arrive':'Has llegado','roundabout':'Toma la rotonda','rotary':'Toma la rotonda','end of road':'Al final gira','new name':'Continúa por','fork':'En el cruce','merge':'Incorpórate'};
+
+/* ══ ESTADO ══ */
+const seen=new Set();
+let actIdx=null, tMode='foot', map=null, satMode=true;
+let myLat=null,myLng=null,myMk=null,myAcc=null,gpsOn=false;
+let cH=null,cRaw=[],cTs=0,cStale=null,wId=null;
+const mks=[];
+let tLines=[],nLines=[];
+let nSteps=[],nIdx=0,nDestLat=null,nDestLng=null,nDestIdx=null;
+const ttCache=new Map();
+
+/* ══ UTILS ══ */
+const fmtD=m=>m<1000?Math.round(m)+'m':(m/1000).toFixed(1)+' km';
+const fmtT=s=>{const m=Math.ceil(s/60);return m<60?m+' min':Math.floor(m/60)+'h '+(m%60)+'m'};
+function hav(a,b,c,d){const R=6371000,dL=(c-a)*Math.PI/180,dl=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dl/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
+let tt_=null;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');if(tt_)clearTimeout(tt_);tt_=setTimeout(()=>t.classList.remove('on'),2800)}
+
+/* ══ MAP INIT ══ */
+const satL=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:19});
+const lblL=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:.8});
+const drkL=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OSM CARTO',subdomains:'abcd',maxZoom:19});
+
+window.addEventListener('load',()=>{
+  map=L.map('map',{center:[40.9505,-4.126],zoom:15,zoomControl:false,attributionControl:false});
+  L.control.attribution({position:'bottomright',prefix:false}).addTo(map);
+  const h=new Date().getHours();
+  if(h>=20||h<7){drkL.addTo(map);satMode=false;document.getElementById('fab-sat').classList.remove('on')}
+  else{satL.addTo(map);lblL.addTo(map)}
+  map.on('click',closeSh);
+  buildMarkers();drawTourRoute();buildBar();
+  map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]});
+});
+
+function toggleSat(){
+  satMode=!satMode;const b=document.getElementById('fab-sat');
+  if(satMode){map.removeLayer(drkL);satL.addTo(map);lblL.addTo(map);b.classList.add('on')}
+  else{map.removeLayer(satL);map.removeLayer(lblL);drkL.addTo(map);b.classList.remove('on')}
+}
+
+/* ══ TOUR ROUTE ══ */
+async function drawTourRoute(){
+  tLines.forEach(l=>map.removeLayer(l));tLines=[];
+  if(STOPS.length<2)return;
+  // Fallback inmediato
+  const straight=STOPS.map(s=>[s.lat,s.lng]);
+  tLines.push(L.polyline(straight,{color:'#5bb8f5',weight:2.5,opacity:.5,dashArray:'6 4'}).addTo(map));
+  // Ruta real por calles via OSRM /trip (orden óptimo)
+  try{
+    const coords=STOPS.map(s=>`${s.lng},${s.lat}`).join(';');
+    const r=await fetch(
+      `https://router.project-osrm.org/trip/v1/foot/${coords}`+
+      `?overview=full&geometries=geojson&source=first&destination=last&roundtrip=false`,
+      {signal:AbortSignal.timeout(10000)}
+    );
+    const d=await r.json();
+    if(d.code==='Ok'&&d.trips?.length){
+      tLines.forEach(l=>map.removeLayer(l));tLines=[];
+      const lls=d.trips[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+      tLines.push(L.polyline(lls,{color:'#000',weight:6,opacity:.25}).addTo(map));
+      tLines.push(L.polyline(lls,{color:'#5bb8f5',weight:3.5,opacity:.9}).addTo(map));
+    }
+  }catch(e){}
+}
+
+/* ══ MARKERS ══ */
+function mkCls(i){
+  if(seen.has(i)) return 'mk s';
+  if(i===actIdx) return 'mk ac';
+  if(i===0)      return 'mk fi';
+  if(i===STOPS.length-1) return 'mk la';
+  return 'mk u';
+}
+function buildMarkers(){
+  mks.forEach(m=>map.removeLayer(m));mks.length=0;
+  STOPS.forEach((s,i)=>{
+    const icon=L.divIcon({className:'',html:`<div class="${mkCls(i)}">${s.n}</div>`,iconSize:[26,26],iconAnchor:[13,13]});
+    const mk=L.marker([s.lat,s.lng],{icon,zIndexOffset:200}).addTo(map);
+    mk.on('click',()=>openSh(i));
+    mks.push(mk);
+  });
+}
+
+/* ══ TIMELINE ══ */
+function buildBar(){
+  const el=document.getElementById('bar');el.innerHTML='';
+  STOPS.forEach((s,i,a)=>{
+    const isDone=seen.has(i);
+    const nc=isDone?'s':i===0?'fi':i===a.length-1?'la':'u';
+    const d=document.createElement('div');d.className='tl';
+    d.innerHTML=`<div class="tl-n ${nc}">${s.n}</div><div class="tl-lbl">${s.name.split('·')[0].trim()}</div><div class="tl-t">${s.time}</div>`;
+    d.addEventListener('click',()=>openSh(i));
+    el.appendChild(d);
+    if(i<a.length-1){const seg=document.createElement('div');seg.className='tl-seg'+(isDone?' done':'');el.appendChild(seg)}
+  });
+}
+
+/* ══ SHEET ══ */
+async function openSh(i){
+  actIdx=i;const s=STOPS[i];
+  document.getElementById('sh-n').textContent=`Parada ${i+1} de ${STOPS.length}`;
+  document.getElementById('sh-nm').textContent=s.name;
+  document.getElementById('sh-tm').textContent=s.time+' · '+s.dur;
+  document.getElementById('sh-ds').textContent=s.desc;
+  document.getElementById('sh-tags').innerHTML=s.tags.map(t=>`<span class="tag ${t.c}">${t.t}</span>`).join('');
+  const isDone=seen.has(i);
+  const bseen=document.getElementById('btn-seen');
+  bseen.textContent=isDone?'✕ Por ver':'✓ Visto';bseen.classList.toggle('on',isDone);
+  // Travel time desde GPS
+  const tEl=document.getElementById('sh-travel');tEl.classList.remove('on');
+  if(myLat!==null){
+    const tt=await getTT(myLat,myLng,s.lat,s.lng,tMode);
+    const eta=new Date(Date.now()+tt.dur*1000);
+    const etaStr=`${eta.getHours().toString().padStart(2,'0')}:${eta.getMinutes().toString().padStart(2,'0')}`;
+    const planned=s.time?s.time.split(':').map(Number):null;
+    const late=planned&&(eta.getHours()*60+eta.getMinutes())>(planned[0]*60+planned[1])+5;
+    document.getElementById('sh-tv').textContent=`${MICO[tMode]} ${fmtT(tt.dur)} · ${fmtD(tt.dist)} → ~${etaStr}`;
+    document.getElementById('sh-tw').textContent=late?'⚠ tarde':'';
+    document.getElementById('sh-tw').style.display=late?'inline':'none';
+    tEl.classList.add('on');
+  }
+  // Foto Wikipedia
+  const ph=document.getElementById('sh-photo');ph.classList.remove('on');
+  if(s.wiki){
+    const title=decodeURIComponent(s.wiki.split('/wiki/')[1]||'');
+    if(title) fetch(`https://es.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&pithumbsize=400&format=json&origin=*`,{signal:AbortSignal.timeout(5000)})
+      .then(r=>r.json()).then(d=>{
+        const img=Object.values(d.query?.pages||{})[0]?.thumbnail?.source;
+        if(img){document.getElementById('sh-img').src=img;ph.classList.add('on')}
+      }).catch(()=>{});
+  }
+  document.getElementById('sh').classList.add('open');
+  buildMarkers();map.panTo([s.lat,s.lng],{animate:true});
+}
+function closeSh(){document.getElementById('sh').classList.remove('open');actIdx=null;buildMarkers()}
+document.getElementById('sh').addEventListener('click',e=>e.stopPropagation());
+document.getElementById('sh-handle').addEventListener('click',closeSh);
+
+function toggleSeen(){
+  if(actIdx===null)return;
+  if(seen.has(actIdx))seen.delete(actIdx);else seen.add(actIdx);
+  const isDone=seen.has(actIdx);
+  const b=document.getElementById('btn-seen');b.textContent=isDone?'✕ Por ver':'✓ Visto';b.classList.toggle('on',isDone);
+  toast(isDone?'✓ Marcado como visto':'↩ Marcado por ver');
+  buildMarkers();buildBar();
+}
+function goWiki(){if(actIdx!==null&&STOPS[actIdx].wiki)window.open(STOPS[actIdx].wiki,'_blank')}
+
+/* ══ REORDER PANEL ══ */
+let dragSrc=null, tdSrc=null, tdGhost=null;
+
+function openReorder(){
+  closeSh();renderReorderList();
+  document.getElementById('reop').classList.add('open');
+}
+function closeReorder(){document.getElementById('reop').classList.remove('open')}
+document.getElementById('reop').addEventListener('click',e=>e.stopPropagation());
+
+function renderReorderList(){
+  const el=document.getElementById('reop-list');el.innerHTML='';
+  STOPS.forEach((s,i)=>{
+    const row=document.createElement('div');row.className='ritem';row.dataset.idx=i;
+    row.innerHTML=`
+      <div class="ritem-handle" data-idx="${i}">☰</div>
+      <div class="ritem-n">${s.n}</div>
+      <div class="ritem-info">
+        <div class="ritem-name">${s.name}</div>
+        <div class="ritem-time">${s.time} · ${s.dur}</div>
+      </div>`;
+    // Mouse drag
+    row.querySelector('.ritem-handle').addEventListener('mousedown',e=>startDrag(e,i,row));
+    // Touch drag
+    row.querySelector('.ritem-handle').addEventListener('touchstart',e=>startTouchDrag(e,i,row),{passive:true});
+    el.appendChild(row);
+  });
+}
+
+function startDrag(e,i,row){
+  dragSrc=i;row.classList.add('dragging');
+  const onMove=ev=>{
+    ev.preventDefault();
+    const t=document.elementFromPoint(ev.clientX,ev.clientY)?.closest('.ritem');
+    document.querySelectorAll('.ritem').forEach(r=>r.classList.remove('drag-over'));
+    if(t&&t!==row)t.classList.add('drag-over');
+  };
+  const onUp=ev=>{
+    document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);
+    row.classList.remove('dragging');
+    const t=document.elementFromPoint(ev.clientX,ev.clientY)?.closest('.ritem');
+    document.querySelectorAll('.ritem').forEach(r=>r.classList.remove('drag-over'));
+    if(t&&t!==row)reorder(dragSrc,parseInt(t.dataset.idx));
+    dragSrc=null;
+  };
+  document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);
+}
+
+function startTouchDrag(e,i,row){
+  tdSrc=i;const touch=e.touches[0];
+  tdGhost=row.cloneNode(true);
+  tdGhost.style.cssText=`position:fixed;left:0;right:0;opacity:.65;pointer-events:none;z-index:9999;background:rgba(91,184,245,.1);border-left:3px solid var(--b)`;
+  tdGhost.style.top=row.getBoundingClientRect().top+'px';
+  document.body.appendChild(tdGhost);row.style.opacity='.3';
+  const onMove=ev=>{
+    const t=ev.touches[0];
+    tdGhost.style.top=(t.clientY-20)+'px';
+    const under=document.elementFromPoint(t.clientX,t.clientY)?.closest('.ritem');
+    document.querySelectorAll('.ritem').forEach(r=>r.classList.remove('drag-over'));
+    if(under&&under!==row)under.classList.add('drag-over');
+  };
+  const onEnd=ev=>{
+    document.removeEventListener('touchmove',onMove);document.removeEventListener('touchend',onEnd);
+    if(tdGhost){tdGhost.remove();tdGhost=null}row.style.opacity='';
+    document.querySelectorAll('.ritem').forEach(r=>r.classList.remove('drag-over'));
+    const t=ev.changedTouches[0];
+    const under=document.elementFromPoint(t.clientX,t.clientY)?.closest('.ritem');
+    if(under&&under!==row)reorder(tdSrc,parseInt(under.dataset.idx));
+    tdSrc=null;
+  };
+  document.addEventListener('touchmove',onMove,{passive:true});
+  document.addEventListener('touchend',onEnd);
+}
+
+function reorder(from,to){
+  if(from===to)return;
+  const moved=STOPS.splice(from,1)[0];
+  STOPS.splice(to,0,moved);
+  // Renumerar y recalcular horarios
+  let [h,m]=STOPS[0].time.split(':').map(Number);
+  STOPS.forEach((s,i)=>{
+    s.n=i+1;
+    if(i>0){s.time=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`}
+    m+=s.stayMin+10;h+=Math.floor(m/60);m%=60;
+  });
+  renderReorderList();
+}
+
+function applyReorder(){
+  closeReorder();
+  ttCache.clear();
+  buildMarkers();buildBar();
+  drawTourRoute();
+  toast('✓ Orden actualizado · Recalculando ruta…');
+  // Refit bounds
+  map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]});
+}
+
+/* ══ NAVIGATION ENGINE ══ */
+async function getTT(fLa,fLo,tLa,tLo,mode){
+  const k=`${fLa.toFixed(3)},${fLo.toFixed(3)}-${tLa.toFixed(3)},${tLo.toFixed(3)}-${mode}`;
+  if(ttCache.has(k))return ttCache.get(k);
+  const dist=hav(fLa,fLo,tLa,tLo);
+  try{
+    const p=mode==='car'?'car':'foot';
+    const r=await fetch(
+      `https://router.project-osrm.org/route/v1/${p}/${fLo},${fLa};${tLo},${tLa}`+
+      `?overview=false&alternatives=false`,
+      {signal:AbortSignal.timeout(6000)}
+    );
+    const d=await r.json();
+    if(d.code==='Ok'){
+      const rd=d.routes[0].distance;
+      let dur=d.routes[0].duration;
+      if(mode==='transit')dur=rd<400?rd/SPEED.foot:rd/SPEED.transit+WAIT.transit;
+      else if(mode==='car')dur+=WAIT.car;
+      const res={dist:rd,dur:Math.round(dur)};ttCache.set(k,res);return res;
+    }
+  }catch(e){}
+  return{dist,dur:Math.round(dist/SPEED[mode]+(mode==='transit'&&dist>400?WAIT.transit:0))};
+}
+
+function setMode(m){
+  tMode=m;
+  ['foot','transit','car'].forEach(k=>document.getElementById('nm-'+k)?.classList.toggle('on',k===m));
+  ttCache.clear();
+  if(nDestLat!==null)navTo(nDestLat,nDestLng,nDestIdx);
+}
+
+function nextStop(){
+  const next=STOPS.findIndex((s,i)=>!seen.has(i));
+  if(next<0){toast('¡Tour completado! 🎉');return}
+  actIdx=next;startNav();
+}
+
+function startNav(){
+  if(actIdx===null)return;
+  closeSh();
+  if(!myLat){
+    document.getElementById('navp').classList.add('open');
+    document.getElementById('nav-ins').textContent='Activa el GPS primero';
+    document.getElementById('nav-arr').textContent='📍';return;
+  }
+  const s=STOPS[actIdx];nDestIdx=actIdx;
+  navTo(s.lat,s.lng,actIdx);
+}
+
+async function navTo(toLat,toLng,stopIdx){
+  nDestLat=toLat;nDestLng=toLng;nDestIdx=stopIdx;
+  const col=MCOL[tMode];
+  document.getElementById('nav-arr').textContent='⏳';
+  document.getElementById('nav-arr').style.background=col;
+  document.getElementById('nav-ins').textContent='Calculando ruta más corta…';
+  document.getElementById('nav-dist').textContent='…';
+  document.getElementById('nav-upcoming').innerHTML='';
+  document.getElementById('navp').classList.add('open');
+
+  try{
+    const p=tMode==='car'?'car':'foot';
+    // steps=true para turn-by-turn real
+    const url=`https://router.project-osrm.org/route/v1/${p}/${myLng},${myLat};${toLng},${toLat}`+
+      `?steps=true&overview=full&geometries=geojson&alternatives=false&continue_straight=false`;
+    const res=await fetch(url,{signal:AbortSignal.timeout(9000)});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    if(data.code!=='Ok')throw new Error(data.code);
+    const route=data.routes[0];
+
+    // Ajustar duración según modo
+    let dur=route.duration, rd=route.distance;
+    if(tMode==='transit')dur=rd<400?rd/SPEED.foot:rd/SPEED.transit+WAIT.transit;
+    else if(tMode==='car')dur+=WAIT.car;
+
+    // Dibujar ruta
+    nLines.forEach(l=>map.removeLayer(l));nLines=[];
+    const lls=route.geometry.coordinates.map(c=>[c[1],c[0]]);
+    nLines.push(L.polyline(lls,{color:'#000',weight:10,opacity:.28}).addTo(map));
+    nLines.push(L.polyline(lls,{color:'#fff',weight:6,opacity:.9}).addTo(map));
+    nLines.push(L.polyline(lls,{color:col,weight:4,opacity:1}).addTo(map));
+    // Marcador destino pulsante
+    nLines.push(L.marker([toLat,toLng],{
+      icon:L.divIcon({className:'',
+        html:`<div style="width:16px;height:16px;border-radius:50%;background:${col};border:3px solid #fff;box-shadow:0 0 0 4px ${col}55;animation:rpl 1.5s ease-out infinite"></div>`,
+        iconSize:[16,16],iconAnchor:[8,8]}),
+      zIndexOffset:4000
+    }).addTo(map));
+    map.fitBounds(L.polyline(lls).getBounds(),{padding:[90,60]});
+
+    // Parsear pasos turn-by-turn con coordenadas exactas de cada maneuver
+    nSteps=[];
+    for(const leg of route.legs) for(const step of leg.steps){
+      const t=step.maneuver.type||'continue', mod=step.maneuver.modifier||'';
+      const k=(mod?`${t}-${mod}`:t).toLowerCase().replace(/ /g,'-');
+      const loc=step.maneuver.location; // [lng, lat]
+      nSteps.push({
+        ico:TICO[k]||TICO[t]||'↑',
+        txt:TES[k]||TES[t]||'Continúa',
+        st:step.name||'',
+        dist:step.distance,
+        dur:step.duration,
+        lat:loc[1], lng:loc[0]  // coordenada exacta del giro
+      });
+    }
+    nIdx=0;
+
+    // Stats
+    const eta=new Date(Date.now()+dur*1000);
+    const etaStr=`${eta.getHours().toString().padStart(2,'0')}:${eta.getMinutes().toString().padStart(2,'0')}`;
+    document.getElementById('nv-eta').textContent=etaStr;
+    document.getElementById('nv-tot').textContent=fmtD(rd);
+    document.getElementById('nv-giros').textContent=nSteps.filter(s=>s.ico!=='🚦'&&s.ico!=='🏁').length;
+    document.getElementById('nv-rem').textContent=fmtD(rd);
+
+    // ¿Llegarías tarde?
+    const destStop=stopIdx!==null?STOPS[stopIdx]:null;
+    if(destStop?.time){
+      const[ph,pm]=destStop.time.split(':').map(Number);
+      const late=(eta.getHours()*60+eta.getMinutes())>(ph*60+pm)+5;
+      document.getElementById('nv-eta').classList.toggle('warn',late);
+      toast(late?`⚠ Llegarías tarde a ${destStop.name}`:`${MICO[tMode]} ${fmtT(dur)} → ${destStop.name}`);
+    } else {
+      toast(`${MICO[tMode]} ${fmtT(dur)}`);
+    }
+    updNav();renderUpcoming();
+
+  }catch(e){
+    document.getElementById('nav-arr').textContent='⚠';
+    document.getElementById('nav-ins').textContent='No se pudo calcular';
+    document.getElementById('nav-street').textContent=e.message||'Verifica conexión';
+    document.getElementById('nav-dist').textContent='—';
+  }
+}
+
+function updNav(){
+  if(!nSteps.length)return;
+  const s=nSteps[nIdx]||nSteps[nSteps.length-1];
+  document.getElementById('nav-arr').textContent=s.ico;
+  document.getElementById('nav-arr').style.background=s.ico==='🏁'?'var(--g)':(MCOL[tMode]||'var(--b)');
+  document.getElementById('nav-ins').textContent=s.txt;
+  document.getElementById('nav-street').textContent=s.st?'por '+s.st:'';
+  document.getElementById('nav-dist').textContent=fmtD(s.dist);
+}
+
+function renderUpcoming(){
+  const up=nSteps.slice(nIdx+1,nIdx+4);
+  document.getElementById('nav-upcoming').innerHTML=up.length
+    ? up.map(s=>`<div class="nup"><div class="nup-ico">${s.ico}</div><span>${s.txt}${s.st?` <span style="opacity:.3">por ${s.st}</span>`:''}</span><span class="nup-d">${fmtD(s.dist)}</span></div>`).join('')
+    : '';
+}
+
+// Avanzar pasos por proximidad a coordenadas reales del maneuver
+function trackNav(lat,lng){
+  if(!nSteps.length||nDestLat===null||nIdx>=nSteps.length)return;
+  const dEnd=hav(lat,lng,nDestLat,nDestLng);
+  document.getElementById('nv-rem').textContent=fmtD(dEnd);
+
+  if(dEnd<15){
+    const s=nDestIdx!==null?STOPS[nDestIdx]:null;
+    if(s&&!seen.has(nDestIdx)){seen.add(nDestIdx);buildBar();buildMarkers()}
+    toast('🏁 Has llegado'+(s?' a '+s.name:''));closeNav();return;
+  }
+
+  // Avanzar paso cuando estamos a <20m del PUNTO DE GIRO siguiente (no del destino)
+  const TRIGGER=20;
+  while(nIdx<nSteps.length-1){
+    const nextStep=nSteps[nIdx+1];
+    const dToNext=hav(lat,lng,nextStep.lat,nextStep.lng);
+    if(dToNext<TRIGGER){
+      nIdx++;updNav();renderUpcoming();
+      if(navigator.vibrate)navigator.vibrate(60);
+      toast(nSteps[nIdx].ico+' '+nSteps[nIdx].txt+(nSteps[nIdx].st?' por '+nSteps[nIdx].st:''));
+    }else break;
+  }
+
+  // Mostrar distancia al próximo punto de giro (más útil que al destino)
+  const nextManeuver=nSteps[nIdx+1];
+  if(nextManeuver){
+    document.getElementById('nav-dist').textContent=fmtD(hav(lat,lng,nextManeuver.lat,nextManeuver.lng));
+  }
+
+  // ETA actualizada
+  const eta=new Date(Date.now()+(dEnd/SPEED[tMode])*1000);
+  document.getElementById('nv-eta').textContent=`${eta.getHours().toString().padStart(2,'0')}:${eta.getMinutes().toString().padStart(2,'0')}`;
+}
+
+function closeNav(){
+  document.getElementById('navp').classList.remove('open');
+  nLines.forEach(l=>map.removeLayer(l));nLines=[];
+  nSteps=[];nIdx=0;nDestLat=null;nDestLng=null;nDestIdx=null;
+  document.getElementById('nav-upcoming').innerHTML='';
+  document.getElementById('nv-eta').classList.remove('warn');
+}
+
+/* ══ GPS + BRÚJULA ══ */
+function buildGI(){return L.divIcon({className:'',html:`<div class="gw"><div class="gr"></div><div class="gb"></div><div class="gc hid" id="gps-cone"></div></div>`,iconSize:[44,44],iconAnchor:[22,22]})}
+function updCone(h){const c=document.getElementById('gps-cone');if(!c)return;c.classList.remove('hid');c.style.transform=`rotate(${h}deg)`}
+function onOrient(e){
+  const now=Date.now();let raw=null;
+  if(typeof e.webkitCompassHeading==='number'&&(typeof e.webkitCompassAccuracy!=='number'||e.webkitCompassAccuracy<50))raw=e.webkitCompassHeading;
+  if(raw===null&&e.absolute&&typeof e.alpha==='number')raw=(360-e.alpha+360)%360;
+  if(raw===null&&typeof e.alpha==='number'&&(now-cTs)>2000)raw=(360-e.alpha+360)%360;
+  if(raw===null)return;
+  if(cH!==null){let d=Math.abs(raw-cH);if(d>180)d=360-d;if(d>120)return}
+  cRaw.push(raw);if(cRaw.length>3)cRaw.shift();
+  let sx=0,sy=0;cRaw.forEach(x=>{const r=x*Math.PI/180;sx+=Math.cos(r);sy+=Math.sin(r)});
+  const med=((Math.atan2(sy/cRaw.length,sx/cRaw.length)*180/Math.PI)+360)%360;
+  if(cH===null){cH=med}else{let d=med-cH;if(d>180)d-=360;if(d<-180)d+=360;cH=(cH+(d>30?.5:d>10?.28:.12)*d+360)%360}
+  updCone(cH);cTs=now;
+  if(cStale)clearTimeout(cStale);
+  cStale=setTimeout(()=>{const c=document.getElementById('gps-cone');if(c)c.classList.add('hid');cH=null;cRaw=[]},3000);
+}
+function onPos(pos){
+  const{latitude:la,longitude:lo,accuracy:ac}=pos.coords;
+  myLat=la;myLng=lo;
+
+  // Primera posición: centrar mapa
+  if(!myMk){
+    map.setView([la,lo],16,{animate:true});
+    myMk=L.marker([la,lo],{icon:buildGI(),zIndexOffset:5000}).addTo(map);
+  } else {
+    myMk.setLatLng([la,lo]);
+    myMk.setIcon(buildGI());
+  }
+
+  if(cH!==null)Promise.resolve().then(()=>updCone(cH));
+
+  // Círculo de precisión
+  if(myAcc)map.removeLayer(myAcc);
+  myAcc=L.circle([la,lo],{radius:ac,color:'#5bb8f5',fillColor:'#5bb8f5',fillOpacity:.06,weight:1}).addTo(map);
+
+  // Mostrar precisión en el top bar
+  document.getElementById('top-title').textContent=
+    `🏰 SEGOVIA · GPS ±${Math.round(ac)}m`;
+
+  if(nDestLat!==null&&nSteps.length)trackNav(la,lo);
+}
+function onErr(e){
+  gpsOn=false;
+  document.getElementById('fab-gps').textContent='📍';
+  document.getElementById('fab-gps').classList.remove('gon');
+  document.getElementById('fab-ctr').style.display='none';
+  const msgs={
+    1:'GPS: Permiso denegado — actívalo en Ajustes del navegador',
+    2:'GPS: Señal no disponible — intenta al aire libre',
+    3:'GPS: Tiempo agotado — vuelve a intentarlo'
+  };
+  toast(msgs[e?.code]||'Error GPS desconocido');
+}
+function toggleGPS(){if(gpsOn)stopGPS();else startGPS()}
+async function startGPS(){
+  if(!navigator.geolocation){toast('GPS no disponible en este navegador');return}
+
+  // Indicar que está intentando
+  document.getElementById('fab-gps').textContent='⏳';
+
+  // Pedir permiso con getCurrentPosition primero (más compatible con iOS Safari)
+  navigator.geolocation.getCurrentPosition(
+    async (pos)=>{
+      // Permiso concedido — ahora activar seguimiento continuo
+      gpsOn=true;
+      document.getElementById('fab-gps').classList.add('gon');
+      document.getElementById('fab-gps').textContent='🔵';
+      document.getElementById('fab-ctr').style.display='flex';
+      try{if('wakeLock' in navigator)await navigator.wakeLock.request('screen')}catch(e){}
+      onPos(pos); // usar posición inicial ya obtenida
+      wId=navigator.geolocation.watchPosition(onPos,onErr,{enableHighAccuracy:true,maximumAge:1500,timeout:20000});
+    },
+    (e)=>{
+      document.getElementById('fab-gps').textContent='📍';
+      onErr(e);
+    },
+    {enableHighAccuracy:true,timeout:15000,maximumAge:0}
+  );
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+    DeviceOrientationEvent.requestPermission().then(r=>{if(r==='granted'){window.addEventListener('deviceorientationabsolute',onOrient,true);window.addEventListener('deviceorientation',onOrient,true)}}).catch(()=>{window.addEventListener('deviceorientation',onOrient,true)});
+  }else{window.addEventListener('deviceorientationabsolute',onOrient,true);window.addEventListener('deviceorientation',onOrient,true)}
+}
+function stopGPS(){
+  gpsOn=false;myLat=null;myLng=null;cH=null;cRaw=[];
+  if(wId)navigator.geolocation.clearWatch(wId);
+  if(cStale)clearTimeout(cStale);
+  window.removeEventListener('deviceorientationabsolute',onOrient,true);window.removeEventListener('deviceorientation',onOrient,true);
+  if(myMk){map.removeLayer(myMk);myMk=null}if(myAcc){map.removeLayer(myAcc);myAcc=null}
+  document.getElementById('fab-gps').classList.remove('gon');document.getElementById('fab-gps').textContent='📍';
+  document.getElementById('fab-ctr').style.display='none';closeNav();
+}
+function centerMe(){if(myLat)map.setView([myLat,myLng],17,{animate:true});else toast('Activa el GPS')}
+
+/* SWIPE sheet */
+let ty=0;
+document.getElementById('sh').addEventListener('touchstart',e=>{ty=e.touches[0].clientY},{passive:true});
+document.getElementById('sh').addEventListener('touchmove',e=>{if(e.touches[0].clientY-ty>60)closeSh()},{passive:true});
+document.getElementById('navp').addEventListener('click',e=>e.stopPropagation());
+</script>
+</body>
+</html>
