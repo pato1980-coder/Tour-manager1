@@ -210,7 +210,6 @@ function renderCustom(q=''){
   if(!entries.length){sec.style.display='none';return}
   sec.style.display='';
   grid.innerHTML=entries.map(t=>cardHTML(t,true)).join('');
-  // mini maps
   entries.forEach(t=>{buildMiniMap(t.id,'cmap_'+t.id,t.center||null,t.id)});
 }
 
