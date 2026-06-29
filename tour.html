@@ -178,7 +178,6 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 
 <div id="map"></div>
 
-<!-- Top bar -->
 <div id="top">
   <span id="top-title">Tour</span>
   <button class="fab" onclick="location.href='index.html'" title="Volver">🏠</button>
@@ -188,7 +187,6 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
   <button class="fab" id="fab-reorder" onclick="openReorder()" style="background:rgba(176,126,245,.18);color:var(--p)">⇅</button>
 </div>
 
-<!-- Nav panel -->
 <div id="navp">
   <button id="nav-x" onclick="closeNav()">✕ Cerrar</button>
   <button id="nav-nxt" onclick="nextStop()">→ Sig.</button>
@@ -214,7 +212,6 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
   </div>
 </div>
 
-<!-- Reorder panel -->
 <div id="reop">
   <div id="reop-hd">
     <h2>⇅ Cambiar orden</h2>
@@ -225,7 +222,6 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
   <button id="reop-apply" onclick="applyReorder()">✓ Aplicar orden</button>
 </div>
 
-<!-- Sheet -->
 <div id="sh">
   <div id="sh-handle" onclick="closeSh()"></div>
   <div id="sh-body">
@@ -246,6 +242,9 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
     <div class="sh-row">
       <button class="btn btn-wiki" onclick="goWiki()">📖 Wikipedia</button>
       <button class="btn btn-reorder" onclick="openReorder()">⇅ Reordenar</button>
+    </div>
+    <div class="sh-row">
+      <button class="btn" style="background:rgba(224,96,96,.08);color:var(--r)" onclick="deleteStop()">🗑 Eliminar parada</button>
     </div>
   </div>
 </div>
@@ -441,6 +440,19 @@ function toggleSeen(){
   if([...Array(STOPS.length).keys()].every(i=>seen.has(i)))setTimeout(()=>toast('🎉 ¡Tour completado!'),400);
 }
 function goWiki(){if(actIdx!==null&&STOPS[actIdx].wiki)window.open(STOPS[actIdx].wiki,'_blank')}
+function deleteStop(){
+  if(actIdx===null)return;
+  const s=STOPS[actIdx];
+  if(!confirm(`¿Eliminar "${s.name}" de este tour?`))return;
+  STOPS.splice(actIdx,1);
+  STOPS.forEach((s,i)=>s.n=i+1);
+  if(IS_CUSTOM){
+    const data=LS.get('tour_data_'+TOUR_ID);
+    if(data){data.stops=STOPS;LS.set('tour_data_'+TOUR_ID,data);}
+  }
+  closeSh();buildMarkers();buildBar();drawTourRoute();
+  toast('🗑 Parada eliminada');
+}
 
 let dragSrc=null,tdSrc=null,tdGhost=null;
 function openReorder(){closeSh();renderReorderList();document.getElementById('reop').classList.add('open')}
