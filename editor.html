@@ -12,7 +12,6 @@
 :root{--b:#5bb8f5;--g:#5edd8a;--r:#e06060;--p:#b07ef5;--o:#f5a623;--mo:'Courier New',monospace;--bg:#0a0c12;--card:rgba(17,21,32,.98);--border:rgba(255,255,255,.08)}
 html,body{height:100%;background:var(--bg);font-family:system-ui,sans-serif;color:#e8e6df;overflow:hidden}
 
-/* LAYOUT */
 #app{display:flex;height:100vh;flex-direction:column}
 header{display:flex;align-items:center;gap:10px;padding:12px 16px;
   background:rgba(10,12,18,.98);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100}
@@ -26,10 +25,8 @@ header{display:flex;align-items:center;gap:10px;padding:12px 16px;
 .hbtn-g:hover{background:rgba(255,255,255,.12)}
 .hbtn-r{background:rgba(94,221,138,.12);color:var(--g);border:1px solid rgba(94,221,138,.2)}
 
-/* MAIN split */
 #main{display:flex;flex:1;overflow:hidden}
 
-/* SIDEBAR */
 #sidebar{width:340px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border);background:rgba(10,12,18,.98)}
 @media(max-width:700px){
   #main{flex-direction:column}
@@ -40,7 +37,6 @@ header{display:flex;align-items:center;gap:10px;padding:12px 16px;
 #sidebar-scroll::-webkit-scrollbar{width:4px}
 #sidebar-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
 
-/* TOUR META */
 .meta-section{margin-bottom:16px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:12px}
 .meta-section h3{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px}
 .field{margin-bottom:10px}
@@ -51,13 +47,11 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
 .field-row{display:flex;gap:8px}
 .field-row .field{flex:1}
 
-/* STOPS LIST */
 .stops-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .stops-hd span{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.1em;text-transform:uppercase}
 .add-stop-btn{background:rgba(94,221,138,.1);color:var(--g);border:1px solid rgba(94,221,138,.2);border-radius:7px;padding:6px 12px;font-family:var(--mo);font-size:9px;font-weight:700;cursor:pointer;transition:all .15s}
 .add-stop-btn:hover{background:rgba(94,221,138,.2)}
 
-/* STOP CARD */
 .stop-card{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;transition:border-color .15s}
 .stop-card.active{border-color:rgba(91,184,245,.4)}
 .stop-head{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;transition:background .12s}
@@ -87,7 +81,6 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
 .drop-pin-btn.waiting{border-style:solid;background:rgba(91,184,245,.12);animation:pulse .8s ease-in-out infinite alternate}
 @keyframes pulse{from{opacity:.7}to{opacity:1}}
 
-/* MAP */
 #map-wrap{flex:1;position:relative;overflow:hidden}
 #map{width:100%;height:100%}
 .map-hint{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:500;
@@ -96,7 +89,6 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
   pointer-events:none;white-space:nowrap;display:none}
 .map-hint.on{display:block}
 
-/* EXPORT PANEL */
 #export-panel{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
 #export-panel.open{opacity:1;pointer-events:all}
 .ep-box{background:rgba(11,14,22,.99);border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:20px 22px 32px;transform:translateY(30px);transition:transform .3s cubic-bezier(.4,0,.2,1);border-top:1px solid var(--border)}
@@ -110,7 +102,6 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
 .ep-btn-g{background:rgba(255,255,255,.07);color:rgba(255,255,255,.7);border:1px solid var(--border)}
 .ep-btn-s{background:rgba(94,221,138,.12);color:var(--g);border:1px solid rgba(94,221,138,.2)}
 
-/* Toast */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);z-index:9999;
   background:rgba(20,26,44,.98);color:#fff;font-family:var(--mo);font-size:10px;
   padding:8px 16px;border-radius:20px;opacity:0;transition:opacity .2s,transform .2s;
@@ -131,7 +122,6 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
   <div id="main">
     <div id="sidebar">
       <div id="sidebar-scroll">
-        <!-- Tour meta -->
         <div class="meta-section">
           <h3>Información del tour</h3>
           <div class="field-row">
@@ -159,8 +149,6 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
             <input type="time" id="t-starttime" value="09:00" onchange="recalcAllTimes()">
           </div>
         </div>
-
-        <!-- Stops -->
         <div>
           <div class="stops-hd">
             <span>Paradas (<span id="stop-count">0</span>)</span>
@@ -173,7 +161,6 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
         </div>
       </div>
     </div>
-
     <div id="map-wrap">
       <div id="map"></div>
       <div class="map-hint" id="map-hint">📍 Haz clic para colocar la parada</div>
@@ -181,7 +168,6 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
   </div>
 </div>
 
-<!-- Export panel -->
 <div id="export-panel" onclick="closeExport()">
   <div class="ep-box" onclick="event.stopPropagation()">
     <div class="ep-handle"></div>
@@ -198,7 +184,6 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
 <div id="toast"></div>
 
 <script>
-/* ══ PARAMS ══ */
 const params=new URLSearchParams(location.search);
 const EDIT_ID=params.get('id');
 const LS={
@@ -206,15 +191,13 @@ const LS={
   set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
 };
 
-/* ══ STATE ══ */
 let stops=[];
 let map=null;
-let placingStopIdx=null; // index of stop waiting for map click
+let placingStopIdx=null;
 let editingStop=null;
 const stopMarkers=[];
 let routeLine=null;
 
-/* ══ TOUR META ══ */
 function getTourMeta(){
   return{
     id:EDIT_ID||('tour_'+Date.now()),
@@ -230,11 +213,9 @@ function updateTitle(){
   document.getElementById('hd-title').textContent=city;
 }
 
-/* ══ TOAST ══ */
 let tt_=null;
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');if(tt_)clearTimeout(tt_);tt_=setTimeout(()=>t.classList.remove('on'),2800)}
 
-/* ══ MAP ══ */
 window.addEventListener('load',()=>{
   map=L.map('map',{center:[40.416,-3.703],zoom:6,zoomControl:true,attributionControl:false});
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OSM CARTO'}).addTo(map);
@@ -252,7 +233,6 @@ function onMapClick(e){
   renderStopsList();
   renderMarkers();
   updateRoute();
-  // open that stop's form
   setActiveStop(placingStopIdx);
 }
 
@@ -268,7 +248,6 @@ function stopPlacing(){
   map.getContainer().style.cursor='';
 }
 
-/* ══ STOPS ══ */
 function genId(){return 's'+Date.now()+Math.random().toString(36).slice(2,6)}
 function defaultStop(idx){
   const startTime=document.getElementById('t-starttime').value||'09:00';
@@ -283,7 +262,6 @@ function addStop(){
   renderStopsList();
   renderMarkers();
   setActiveStop(stops.length-1);
-  // scroll to bottom
   const sl=document.getElementById('sidebar-scroll');sl.scrollTop=sl.scrollHeight;
   toast('✓ Parada añadida — haz clic en el mapa para ubicarla');
   startPlacing(stops.length-1);
@@ -320,11 +298,9 @@ function recalcAllTimes(){recalcTimes();renderStopsList()}
 function setActiveStop(idx){
   editingStop=idx;
   renderStopsList();
-  // open body
   const bodies=document.querySelectorAll('.stop-body');
   bodies.forEach((b,i)=>{if(i===idx)b.classList.add('open');else b.classList.remove('open')});
   document.querySelectorAll('.stop-card').forEach((c,i)=>c.classList.toggle('active',i===idx));
-  // center map on stop
   const s=stops[idx];
   if(s.lat&&s.lng)map.panTo([s.lat,s.lng],{animate:true});
 }
@@ -344,7 +320,6 @@ function getStopFromForm(idx){
 
 function syncAllForms(){stops.forEach((_,i)=>getStopFromForm(i))}
 
-/* ══ RENDER STOPS LIST ══ */
 function renderStopsList(){
   const el=document.getElementById('stops-list');
   const empty=document.getElementById('stops-empty');
@@ -400,7 +375,6 @@ function renderStopsList(){
           <input type="text" id="s${i}_lat" placeholder="Lat" value="${s.lat??''}" oninput="updateLatLng(${i})">
           <input type="text" id="s${i}_lng" placeholder="Lng" value="${s.lng??''}" oninput="updateLatLng(${i})">
         </div>
-        <!-- Tags -->
         <label>Etiquetas</label>
         <div class="tags-wrap" id="tags_${i}"></div>
         <div class="add-tag-row">
@@ -439,13 +413,12 @@ function updateLatLng(i){
   if(!isNaN(lat)&&!isNaN(lng)){stops[i].lat=lat;stops[i].lng=lng;renderMarkers();updateRoute();const hint=document.querySelector('#sbody_'+i+' .stop-map-hint');if(hint)hint.textContent=`📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}`}
 }
 
-/* ══ TAGS ══ */
 function renderTags(i){
   const wrap=document.getElementById('tags_'+i);if(!wrap)return;
   wrap.innerHTML=(stops[i].tags||[]).map((t,ti)=>`
     <div class="tag-chip">
       <span style="${t.c==='g'?'color:var(--g)':t.c==='b'?'color:var(--b)':''}">${esc(t.t)}</span>
-      <button class="del-tag" onclick="removeTag(${i},${ti})">×</button>
+      <button class="del-tag" onclick="removeTag(${i},${ti})">x</button>
     </div>`).join('');
 }
 function addTag(i){
@@ -458,7 +431,6 @@ function addTag(i){
 }
 function removeTag(i,ti){stops[i].tags.splice(ti,1);renderTags(i)}
 
-/* ══ MARKERS ══ */
 function renderMarkers(){
   stopMarkers.forEach(m=>map.removeLayer(m));stopMarkers.length=0;
   stops.forEach((s,i)=>{
@@ -495,7 +467,6 @@ async function updateRoute(){
   }catch(e){}
 }
 
-/* ══ LOAD EXISTING ══ */
 function loadExisting(){
   const data=LS.get('tour_data_'+EDIT_ID);
   if(!data){toast('⚠ Tour no encontrado');return}
@@ -511,7 +482,6 @@ function loadExisting(){
   updateRoute();
 }
 
-/* ══ SAVE ══ */
 function buildTourData(){
   syncAllForms();
   const meta=getTourMeta();
@@ -545,7 +515,6 @@ function preview(){
   window.open(`tour.html?id=${data.id}&custom=1`,'_blank');
 }
 
-/* ══ EXPORT ══ */
 function openExport(){syncAllForms();document.getElementById('export-panel').classList.add('open')}
 function closeExport(){document.getElementById('export-panel').classList.remove('open')}
 
@@ -564,7 +533,6 @@ function copyLink(){
   closeExport();
 }
 
-/* ══ BACK ══ */
 function confirmBack(){
   if(stops.length&&!confirm('¿Salir sin guardar? Los cambios se perderán si no guardas.'))return;
   location.href='index.html';
