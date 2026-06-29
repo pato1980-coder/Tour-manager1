@@ -248,6 +248,9 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
       <button class="btn btn-wiki" onclick="goWiki()">📖 Wikipedia</button>
       <button class="btn btn-reorder" onclick="openReorder()">⇅ Reordenar</button>
     </div>
+    <div class="sh-row">
+      <button class="btn" style="background:rgba(224,96,96,.08);color:var(--r)" onclick="deleteStop()">🗑 Eliminar parada</button>
+    </div>
   </div>
 </div>
 
@@ -454,6 +457,19 @@ function toggleSeen(){
   if([...Array(STOPS.length).keys()].every(i=>seen.has(i)))setTimeout(()=>toast('🎉 ¡Tour completado!'),400);
 }
 function goWiki(){if(actIdx!==null&&STOPS[actIdx].wiki)window.open(STOPS[actIdx].wiki,'_blank')}
+function deleteStop(){
+  if(actIdx===null)return;
+  const s=STOPS[actIdx];
+  if(!confirm(`¿Eliminar "${s.name}" de este tour?`))return;
+  STOPS.splice(actIdx,1);
+  STOPS.forEach((s,i)=>s.n=i+1);
+  if(IS_CUSTOM){
+    const data=LS.get('tour_data_'+TOUR_ID);
+    if(data){data.stops=STOPS;LS.set('tour_data_'+TOUR_ID,data);}
+  }
+  closeSh();buildMarkers();buildBar();drawTourRoute();
+  toast('🗑 Parada eliminada');
+}
 
 /* ══ REORDER ══ */
 let dragSrc=null,tdSrc=null,tdGhost=null;

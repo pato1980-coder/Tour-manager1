@@ -173,7 +173,6 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,12,18,.97);
 const BUILTIN=[
   {id:'segovia',city:'Segovia',country:'España',emoji:'🏰',stops:6,duration:'5h',file:'tours/segovia.json'},
   {id:'toledo',city:'Toledo',country:'España',emoji:'⚔️',stops:6,duration:'5h',file:'tours/toledo.json'},
-  {id:'granada',city:'Granada',country:'España',emoji:'🕌',stops:6,duration:'6h',file:'tours/granada.json'},
 ];
 
 /* ── localStorage ── */
@@ -187,6 +186,8 @@ function deleteCustomTour(id){
   const idx=getCustomTours();delete idx[id];LS.set('tours_index',idx);
   LS.del('tour_data_'+id);
 }
+function getHiddenBuiltins(){return LS.get('hidden_builtins',[]);}
+function hideBuiltin(id){const h=getHiddenBuiltins();if(!h.includes(id))h.push(id);LS.set('hidden_builtins',h);}
 
 /* ── Toast ── */
 let tt_=null;
@@ -215,7 +216,8 @@ function renderCustom(q=''){
 }
 
 function renderBuiltin(q=''){
-  const list=BUILTIN.filter(t=>!q||t.city.toLowerCase().includes(q)||t.country?.toLowerCase().includes(q));
+  const hidden=getHiddenBuiltins();
+  const list=BUILTIN.filter(t=>!hidden.includes(t.id)&&(!q||t.city.toLowerCase().includes(q)||t.country?.toLowerCase().includes(q)));
   document.getElementById('builtin-count').textContent=list.length+' tour'+(list!==1?'s':'');
   const grid=document.getElementById('builtin-grid');
   if(!list.length){grid.innerHTML=`<div class="empty"><div class="empty-ico">🗺</div><div class="empty-t">Sin resultados</div><div class="empty-s">Prueba otra ciudad.</div></div>`;return}
@@ -243,9 +245,8 @@ function cardHTML(t,custom){
       </div>
       <div class="card-foot">
         <button class="card-btn card-btn-start" onclick="event.stopPropagation();openTour('${t.id}',${custom})">▶ Iniciar</button>
-        ${custom?`
-        <button class="card-btn card-btn-edit" onclick="event.stopPropagation();editTour('${t.id}')">✎ Editar</button>
-        <button class="card-btn card-btn-del" onclick="event.stopPropagation();confirmDelete('${t.id}','${t.city}')">🗑</button>`:''}
+        ${custom?`<button class="card-btn card-btn-edit" onclick="event.stopPropagation();editTour('${t.id}')">✎ Editar</button>`:''}
+        <button class="card-btn card-btn-del" onclick="event.stopPropagation();confirmDelete('${t.id}','${t.city}',${custom})">🗑</button>
       </div>
     </div>
   </div>`;
@@ -295,12 +296,14 @@ function editTour(id){location.href=`editor.html?id=${id}`;}
 
 /* ── Delete ── */
 let pendingDelete=null;
-function confirmDelete(id,city){
+function confirmDelete(id,city,custom){
   pendingDelete=id;
   document.getElementById('del-modal-t').textContent=`¿Eliminar "${city}"?`;
-  document.getElementById('del-modal-s').textContent='Esta acción no se puede deshacer. El tour se eliminará permanentemente de este dispositivo.';
+  document.getElementById('del-modal-s').textContent=custom
+    ?'Esta acción no se puede deshacer. El tour se eliminará permanentemente de este dispositivo.'
+    :'El tour se ocultará de la lista en este dispositivo.';
   document.getElementById('del-modal-confirm').onclick=()=>{
-    deleteCustomTour(id);
+    if(custom)deleteCustomTour(id);else hideBuiltin(id);
     closeDelModal();
     toast('🗑 Tour eliminado');
     renderAll();
