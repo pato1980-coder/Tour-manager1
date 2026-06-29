@@ -1,0 +1,80 @@
+{
+  "id": "toledo",
+  "city": "Toledo",
+  "country": "España",
+  "emoji": "⚔️",
+  "title": "Toledo · Tour",
+  "header": "⚔️ TOLEDO · 9h–14h",
+  "startTime": "09:00",
+  "center": [39.8581, -4.0226],
+  "zoom": 15,
+  "duration": "5h",
+  "stops": [
+    {
+      "name": "Puerta de Bisagra",
+      "time": "09:00",
+      "dur": "10 min · gratis",
+      "stayMin": 10,
+      "desc": "La entrada principal a la ciudad imperial, construida en el s.XVI por Carlos V. La fachada exterior está coronada por el águila imperial bicéfala.",
+      "lat": 39.8628,
+      "lng": -4.0265,
+      "tags": [{"t":"gratis","c":"g"},{"t":"s.XVI","c":""},{"t":"entrada","c":"b"}],
+      "wiki": "https://es.wikipedia.org/wiki/Puerta_de_Bisagra_(Toledo)"
+    },
+    {
+      "name": "Catedral Primada",
+      "time": "09:15",
+      "dur": "60 min · 10€",
+      "stayMin": 60,
+      "desc": "Una de las catedrales góticas más grandes del mundo (s.XIII–XV). Alberga obras de El Greco, Goya y Velázquez. La sacristía es impresionante.",
+      "lat": 39.8571,
+      "lng": -4.0237,
+      "tags": [{"t":"s.XIII","c":""},{"t":"gótico","c":""},{"t":"10€","c":"b"}],
+      "wiki": "https://es.wikipedia.org/wiki/Catedral_de_Toledo"
+    },
+    {
+      "name": "Alcázar de Toledo",
+      "time": "10:20",
+      "dur": "60 min · 5€",
+      "stayMin": 60,
+      "desc": "Fortaleza medieval en el punto más alto de Toledo. Hoy alberga el Museo del Ejército con 700 años de historia militar española.",
+      "lat": 39.8567,
+      "lng": -4.0203,
+      "tags": [{"t":"medieval","c":""},{"t":"5€","c":"b"},{"t":"museo","c":""}],
+      "wiki": "https://es.wikipedia.org/wiki/Alc%C3%A1zar_de_Toledo"
+    },
+    {
+      "name": "Iglesia de Santo Tomé",
+      "time": "11:30",
+      "dur": "20 min · 3€",
+      "stayMin": 20,
+      "desc": "Alberga 'El Entierro del Conde de Orgaz', la obra maestra de El Greco (1586). Una sala, un cuadro, una experiencia única.",
+      "lat": 39.8558,
+      "lng": -4.0253,
+      "tags": [{"t":"El Greco","c":"b"},{"t":"3€","c":"b"},{"t":"s.XIV","c":""}],
+      "wiki": "https://es.wikipedia.org/wiki/Iglesia_de_Santo_Tom%C3%A9_(Toledo)"
+    },
+    {
+      "name": "Sinagoga del Tránsito",
+      "time": "12:00",
+      "dur": "30 min · 3€",
+      "stayMin": 30,
+      "desc": "Joya del s.XIV del barrio judío de Toledo. Alberga el Museo Sefardí con inscripciones en hebreo y decoración mudéjar única.",
+      "lat": 39.8549,
+      "lng": -4.0259,
+      "tags": [{"t":"s.XIV","c":""},{"t":"sefardí","c":""},{"t":"3€","c":"b"}],
+      "wiki": "https://es.wikipedia.org/wiki/Sinagoga_del_Tr%C3%A1nsito"
+    },
+    {
+      "name": "Mirador del Valle",
+      "time": "12:45",
+      "dur": "20 min · gratis",
+      "stayMin": 20,
+      "desc": "El mejor panorama de Toledo: la ciudad amurallada reflejada en el río Tajo. La vista que inmortalizó El Greco en 'Vista de Toledo'.",
+      "lat": 39.8476,
+      "lng": -4.0262,
+      "tags": [{"t":"gratis","c":"g"},{"t":"vistas","c":""},{"t":"imprescindible","c":"b"}],
+      "wiki": "https://es.wikipedia.org/wiki/Toledo"
+    }
+  ]
+}

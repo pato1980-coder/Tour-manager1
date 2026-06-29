@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Editor de Tours</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--b:#5bb8f5;--g:#5edd8a;--r:#e06060;--p:#b07ef5;--o:#f5a623;--mo:'Courier New',monospace;--bg:#0a0c12;--card:rgba(17,21,32,.98);--border:rgba(255,255,255,.08)}
+html,body{height:100%;background:var(--bg);font-family:system-ui,sans-serif;color:#e8e6df;overflow:hidden}
+
+/* LAYOUT */
+#app{display:flex;height:100vh;flex-direction:column}
+header{display:flex;align-items:center;gap:10px;padding:12px 16px;
+  background:rgba(10,12,18,.98);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100}
+.back-btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:#e8e6df;border-radius:8px;padding:8px 12px;font-family:var(--mo);font-size:10px;cursor:pointer;transition:background .15s}
+.back-btn:hover{background:rgba(255,255,255,.12)}
+#hd-title{flex:1;font-family:var(--mo);font-size:13px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hbtn{height:34px;padding:0 14px;border-radius:8px;border:none;font-family:var(--mo);font-size:10px;font-weight:700;letter-spacing:.05em;cursor:pointer;transition:all .15s;white-space:nowrap}
+.hbtn-p{background:var(--b);color:#0a0c12}
+.hbtn-p:hover{opacity:.85}
+.hbtn-g{background:rgba(255,255,255,.07);color:rgba(255,255,255,.7);border:1px solid var(--border)}
+.hbtn-g:hover{background:rgba(255,255,255,.12)}
+.hbtn-r{background:rgba(94,221,138,.12);color:var(--g);border:1px solid rgba(94,221,138,.2)}
+
+/* MAIN split */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* SIDEBAR */
+#sidebar{width:340px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border);background:rgba(10,12,18,.98)}
+@media(max-width:700px){
+  #main{flex-direction:column}
+  #sidebar{width:100%;height:50vh;border-right:none;border-bottom:1px solid var(--border)}
+  #map-wrap{height:50vh}
+}
+#sidebar-scroll{flex:1;overflow-y:auto;padding:14px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.1) transparent}
+#sidebar-scroll::-webkit-scrollbar{width:4px}
+#sidebar-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+
+/* TOUR META */
+.meta-section{margin-bottom:16px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:12px}
+.meta-section h3{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px}
+.field{margin-bottom:10px}
+label{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:4px}
+input[type=text],input[type=time],select,textarea{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:7px;color:#e8e6df;font-family:inherit;font-size:13px;padding:8px 10px;width:100%;outline:none;transition:border-color .15s}
+input:focus,textarea:focus,select:focus{border-color:rgba(91,184,245,.4)}
+input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
+.field-row{display:flex;gap:8px}
+.field-row .field{flex:1}
+
+/* STOPS LIST */
+.stops-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.stops-hd span{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.1em;text-transform:uppercase}
+.add-stop-btn{background:rgba(94,221,138,.1);color:var(--g);border:1px solid rgba(94,221,138,.2);border-radius:7px;padding:6px 12px;font-family:var(--mo);font-size:9px;font-weight:700;cursor:pointer;transition:all .15s}
+.add-stop-btn:hover{background:rgba(94,221,138,.2)}
+
+/* STOP CARD */
+.stop-card{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;transition:border-color .15s}
+.stop-card.active{border-color:rgba(91,184,245,.4)}
+.stop-head{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;transition:background .12s}
+.stop-head:hover{background:rgba(255,255,255,.03)}
+.stop-num{width:24px;height:24px;border-radius:50%;background:var(--b);color:#0a0c12;font-family:var(--mo);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stop-num.first{background:var(--g)}
+.stop-name-preview{flex:1;font-size:13px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stop-time-preview{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.35);flex-shrink:0}
+.stop-actions{display:flex;gap:6px;flex-shrink:0}
+.stop-act{background:none;border:none;font-size:14px;cursor:pointer;padding:2px 4px;opacity:.4;transition:opacity .15s;color:#fff}
+.stop-act:hover{opacity:1}
+.stop-body{display:none;padding:0 12px 12px;border-top:1px solid var(--border)}
+.stop-body.open{display:block}
+.stop-map-hint{font-family:var(--mo);font-size:9px;color:rgba(91,184,245,.6);margin-bottom:8px;margin-top:8px;padding:6px 8px;background:rgba(91,184,245,.06);border-radius:6px;border:1px solid rgba(91,184,245,.15)}
+.coords-row{display:flex;gap:6px;margin-bottom:8px}
+.coords-row input{font-family:var(--mo);font-size:11px}
+.tags-wrap{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.tag-chip{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:3px 8px;font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.6)}
+.tag-chip .del-tag{background:none;border:none;color:rgba(255,255,255,.3);cursor:pointer;font-size:12px;padding:0;line-height:1}
+.tag-chip .del-tag:hover{color:var(--r)}
+.add-tag-row{display:flex;gap:6px}
+.add-tag-row input{flex:1;font-size:11px;padding:6px 8px}
+.add-tag-row select{width:80px;font-size:11px;padding:6px 4px}
+.add-tag-row button{background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:7px;color:#e8e6df;font-size:13px;cursor:pointer;padding:6px 10px}
+.drop-pin-btn{width:100%;padding:8px;border-radius:7px;border:1px dashed rgba(91,184,245,.3);background:rgba(91,184,245,.05);color:var(--b);font-family:var(--mo);font-size:9px;cursor:pointer;margin-top:4px;transition:all .15s}
+.drop-pin-btn:hover{background:rgba(91,184,245,.1)}
+.drop-pin-btn.waiting{border-style:solid;background:rgba(91,184,245,.12);animation:pulse .8s ease-in-out infinite alternate}
+@keyframes pulse{from{opacity:.7}to{opacity:1}}
+
+/* MAP */
+#map-wrap{flex:1;position:relative;overflow:hidden}
+#map{width:100%;height:100%}
+.map-hint{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:500;
+  background:rgba(10,12,18,.9);border:1px solid rgba(91,184,245,.3);border-radius:20px;
+  padding:7px 16px;font-family:var(--mo);font-size:10px;color:var(--b);
+  pointer-events:none;white-space:nowrap;display:none}
+.map-hint.on{display:block}
+
+/* EXPORT PANEL */
+#export-panel{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
+#export-panel.open{opacity:1;pointer-events:all}
+.ep-box{background:rgba(11,14,22,.99);border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:20px 22px 32px;transform:translateY(30px);transition:transform .3s cubic-bezier(.4,0,.2,1);border-top:1px solid var(--border)}
+#export-panel.open .ep-box{transform:translateY(0)}
+.ep-handle{width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.15);margin:0 auto 16px}
+.ep-t{font-size:17px;font-weight:700;color:#fff;margin-bottom:4px}
+.ep-s{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.7}
+.ep-btns{display:flex;gap:10px}
+.ep-btn{flex:1;padding:13px 8px;border-radius:10px;border:none;font-family:var(--mo);font-size:10px;font-weight:700;letter-spacing:.05em;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.ep-btn-p{background:var(--b);color:#0a0c12}
+.ep-btn-g{background:rgba(255,255,255,.07);color:rgba(255,255,255,.7);border:1px solid var(--border)}
+.ep-btn-s{background:rgba(94,221,138,.12);color:var(--g);border:1px solid rgba(94,221,138,.2)}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);z-index:9999;
+  background:rgba(20,26,44,.98);color:#fff;font-family:var(--mo);font-size:10px;
+  padding:8px 16px;border-radius:20px;opacity:0;transition:opacity .2s,transform .2s;
+  pointer-events:none;white-space:nowrap;box-shadow:0 2px 16px rgba(0,0,0,.6);max-width:90vw}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <button class="back-btn" onclick="confirmBack()">← Volver</button>
+    <div id="hd-title">Nuevo tour</div>
+    <button class="hbtn hbtn-g" id="preview-btn" onclick="preview()" style="display:none">👁 Ver</button>
+    <button class="hbtn hbtn-r" onclick="openExport()">⬇ Exportar</button>
+    <button class="hbtn hbtn-p" onclick="save()">💾 Guardar</button>
+  </header>
+  <div id="main">
+    <div id="sidebar">
+      <div id="sidebar-scroll">
+        <!-- Tour meta -->
+        <div class="meta-section">
+          <h3>Información del tour</h3>
+          <div class="field-row">
+            <div class="field" style="max-width:60px">
+              <label>Emoji</label>
+              <input type="text" id="t-emoji" value="📍" maxlength="4" style="text-align:center;font-size:20px;padding:4px">
+            </div>
+            <div class="field" style="flex:1">
+              <label>Ciudad / Nombre</label>
+              <input type="text" id="t-city" placeholder="Ej: Madrid" oninput="updateTitle()">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>País</label>
+              <input type="text" id="t-country" placeholder="España">
+            </div>
+            <div class="field">
+              <label>Duración total</label>
+              <input type="text" id="t-duration" placeholder="5h">
+            </div>
+          </div>
+          <div class="field">
+            <label>Hora inicio</label>
+            <input type="time" id="t-starttime" value="09:00" onchange="recalcAllTimes()">
+          </div>
+        </div>
+
+        <!-- Stops -->
+        <div>
+          <div class="stops-hd">
+            <span>Paradas (<span id="stop-count">0</span>)</span>
+            <button class="add-stop-btn" onclick="addStop()">+ Añadir parada</button>
+          </div>
+          <div id="stops-list"></div>
+          <div id="stops-empty" style="padding:24px;text-align:center;font-family:var(--mo);font-size:10px;color:rgba(255,255,255,.25)">
+            Añade paradas usando el botón de arriba<br>o haz clic en el mapa para colocarlas
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="map-wrap">
+      <div id="map"></div>
+      <div class="map-hint" id="map-hint">📍 Haz clic para colocar la parada</div>
+    </div>
+  </div>
+</div>
+
+<!-- Export panel -->
+<div id="export-panel" onclick="closeExport()">
+  <div class="ep-box" onclick="event.stopPropagation()">
+    <div class="ep-handle"></div>
+    <div class="ep-t">⬇ Exportar tour</div>
+    <div class="ep-s">Descarga el tour como archivo JSON para importarlo en otro dispositivo, o comparte el enlace directo.</div>
+    <div class="ep-btns">
+      <button class="ep-btn ep-btn-g" onclick="closeExport()">Cancelar</button>
+      <button class="ep-btn ep-btn-s" onclick="copyLink()">🔗 Copiar link</button>
+      <button class="ep-btn ep-btn-p" onclick="downloadJSON()">⬇ Descargar JSON</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ══ PARAMS ══ */
+const params=new URLSearchParams(location.search);
+const EDIT_ID=params.get('id');
+const LS={
+  get:(k,d=null)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+};
+
+/* ══ STATE ══ */
+let stops=[];
+let map=null;
+let placingStopIdx=null; // index of stop waiting for map click
+let editingStop=null;
+const stopMarkers=[];
+let routeLine=null;
+
+/* ══ TOUR META ══ */
+function getTourMeta(){
+  return{
+    id:EDIT_ID||('tour_'+Date.now()),
+    city:document.getElementById('t-city').value.trim()||'Mi Tour',
+    country:document.getElementById('t-country').value.trim(),
+    emoji:document.getElementById('t-emoji').value.trim()||'📍',
+    duration:document.getElementById('t-duration').value.trim()||'?h',
+    startTime:document.getElementById('t-starttime').value||'09:00',
+  };
+}
+function updateTitle(){
+  const city=document.getElementById('t-city').value.trim()||'Nuevo tour';
+  document.getElementById('hd-title').textContent=city;
+}
+
+/* ══ TOAST ══ */
+let tt_=null;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');if(tt_)clearTimeout(tt_);tt_=setTimeout(()=>t.classList.remove('on'),2800)}
+
+/* ══ MAP ══ */
+window.addEventListener('load',()=>{
+  map=L.map('map',{center:[40.416,-3.703],zoom:6,zoomControl:true,attributionControl:false});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OSM CARTO'}).addTo(map);
+  L.control.attribution({position:'bottomright',prefix:false}).addTo(map);
+  map.on('click',onMapClick);
+  if(EDIT_ID)loadExisting();
+});
+
+function onMapClick(e){
+  if(placingStopIdx===null)return;
+  const{lat,lng}=e.latlng;
+  stops[placingStopIdx].lat=parseFloat(lat.toFixed(6));
+  stops[placingStopIdx].lng=parseFloat(lng.toFixed(6));
+  stopPlacing();
+  renderStopsList();
+  renderMarkers();
+  updateRoute();
+  // open that stop's form
+  setActiveStop(placingStopIdx);
+}
+
+function startPlacing(idx){
+  placingStopIdx=idx;
+  document.getElementById('map-hint').classList.add('on');
+  map.getContainer().style.cursor='crosshair';
+  toast('📍 Haz clic en el mapa para ubicar la parada');
+}
+function stopPlacing(){
+  placingStopIdx=null;
+  document.getElementById('map-hint').classList.remove('on');
+  map.getContainer().style.cursor='';
+}
+
+/* ══ STOPS ══ */
+function genId(){return 's'+Date.now()+Math.random().toString(36).slice(2,6)}
+function defaultStop(idx){
+  const startTime=document.getElementById('t-starttime').value||'09:00';
+  let[h,m]=startTime.split(':').map(Number);
+  stops.slice(0,idx).forEach(s=>{m+=s.stayMin+10;h+=Math.floor(m/60);m%=60});
+  return{_id:genId(),name:'Parada '+(idx+1),time:`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`,dur:'30 min · gratis',stayMin:30,desc:'',lat:null,lng:null,tags:[],wiki:''};
+}
+
+function addStop(){
+  const s=defaultStop(stops.length);
+  stops.push(s);
+  renderStopsList();
+  renderMarkers();
+  setActiveStop(stops.length-1);
+  // scroll to bottom
+  const sl=document.getElementById('sidebar-scroll');sl.scrollTop=sl.scrollHeight;
+  toast('✓ Parada añadida — haz clic en el mapa para ubicarla');
+  startPlacing(stops.length-1);
+}
+
+function removeStop(idx){
+  stops.splice(idx,1);
+  recalcTimes();
+  renderStopsList();
+  renderMarkers();
+  updateRoute();
+  stopPlacing();
+}
+
+function moveStop(idx,dir){
+  const to=idx+dir;
+  if(to<0||to>=stops.length)return;
+  [stops[idx],stops[to]]=[stops[to],stops[idx]];
+  recalcTimes();renderStopsList();renderMarkers();updateRoute();
+}
+
+function recalcTimes(){
+  if(!stops.length)return;
+  const startTime=document.getElementById('t-starttime').value||'09:00';
+  let[h,m]=startTime.split(':').map(Number);
+  stops.forEach((s,i)=>{
+    s.time=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    m+=s.stayMin+10;h+=Math.floor(m/60);m%=60;
+  });
+}
+
+function recalcAllTimes(){recalcTimes();renderStopsList()}
+
+function setActiveStop(idx){
+  editingStop=idx;
+  renderStopsList();
+  // open body
+  const bodies=document.querySelectorAll('.stop-body');
+  bodies.forEach((b,i)=>{if(i===idx)b.classList.add('open');else b.classList.remove('open')});
+  document.querySelectorAll('.stop-card').forEach((c,i)=>c.classList.toggle('active',i===idx));
+  // center map on stop
+  const s=stops[idx];
+  if(s.lat&&s.lng)map.panTo([s.lat,s.lng],{animate:true});
+}
+
+function getStopFromForm(idx){
+  const pfx='s'+idx+'_';
+  stops[idx].name=document.getElementById(pfx+'name')?.value||stops[idx].name;
+  stops[idx].dur=document.getElementById(pfx+'dur')?.value||stops[idx].dur;
+  stops[idx].stayMin=parseInt(document.getElementById(pfx+'stay')?.value)||stops[idx].stayMin;
+  stops[idx].desc=document.getElementById(pfx+'desc')?.value||'';
+  stops[idx].wiki=document.getElementById(pfx+'wiki')?.value||'';
+  const latV=parseFloat(document.getElementById(pfx+'lat')?.value);
+  const lngV=parseFloat(document.getElementById(pfx+'lng')?.value);
+  if(!isNaN(latV))stops[idx].lat=latV;
+  if(!isNaN(lngV))stops[idx].lng=lngV;
+}
+
+function syncAllForms(){stops.forEach((_,i)=>getStopFromForm(i))}
+
+/* ══ RENDER STOPS LIST ══ */
+function renderStopsList(){
+  const el=document.getElementById('stops-list');
+  const empty=document.getElementById('stops-empty');
+  document.getElementById('stop-count').textContent=stops.length;
+  empty.style.display=stops.length?'none':'block';
+  document.getElementById('preview-btn').style.display=stops.length?'':'none';
+  el.innerHTML='';
+  stops.forEach((s,i)=>{
+    const isOpen=editingStop===i;
+    const div=document.createElement('div');
+    div.className='stop-card'+(isOpen?' active':'');
+    div.dataset.idx=i;
+    const hasCoords=s.lat!==null&&s.lng!==null;
+    div.innerHTML=`
+      <div class="stop-head" onclick="toggleStop(${i})">
+        <div class="stop-num${i===0?' first':''}">${i+1}</div>
+        <div class="stop-name-preview">${s.name}</div>
+        <div class="stop-time-preview">${s.time}</div>
+        <div class="stop-actions">
+          ${i>0?`<button class="stop-act" title="Subir" onclick="event.stopPropagation();moveStop(${i},-1)">↑</button>`:''}
+          ${i<stops.length-1?`<button class="stop-act" title="Bajar" onclick="event.stopPropagation();moveStop(${i},1)">↓</button>`:''}
+          <button class="stop-act" title="Eliminar" onclick="event.stopPropagation();removeStop(${i})">🗑</button>
+        </div>
+      </div>
+      <div class="stop-body${isOpen?' open':''}" id="sbody_${i}">
+        <div class="stop-map-hint">${hasCoords?`📍 ${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}`:'⚠ Sin ubicación en el mapa'}</div>
+        <button class="drop-pin-btn${placingStopIdx===i?' waiting':''}" onclick="startPlacing(${i})">
+          ${placingStopIdx===i?'⏳ Haz clic en el mapa…':'📍 Colocar en el mapa'}
+        </button>
+        <div class="field" style="margin-top:10px">
+          <label>Nombre</label>
+          <input type="text" id="s${i}_name" value="${esc(s.name)}" oninput="stops[${i}].name=this.value;updatePreviewName(${i},this.value)">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Duración</label>
+            <input type="text" id="s${i}_dur" value="${esc(s.dur)}" placeholder="30 min · gratis" oninput="stops[${i}].dur=this.value">
+          </div>
+          <div class="field" style="max-width:80px">
+            <label>Min estancia</label>
+            <input type="text" id="s${i}_stay" value="${s.stayMin}" oninput="stops[${i}].stayMin=parseInt(this.value)||30;recalcTimes();updateTimePreviews()">
+          </div>
+        </div>
+        <div class="field">
+          <label>Descripción</label>
+          <textarea id="s${i}_desc" rows="3" placeholder="Descripción de la parada…" style="resize:vertical" oninput="stops[${i}].desc=this.value">${esc(s.desc)}</textarea>
+        </div>
+        <div class="field">
+          <label>Wikipedia URL</label>
+          <input type="text" id="s${i}_wiki" value="${esc(s.wiki)}" placeholder="https://es.wikipedia.org/wiki/…" oninput="stops[${i}].wiki=this.value">
+        </div>
+        <div class="coords-row">
+          <input type="text" id="s${i}_lat" placeholder="Lat" value="${s.lat??''}" oninput="updateLatLng(${i})">
+          <input type="text" id="s${i}_lng" placeholder="Lng" value="${s.lng??''}" oninput="updateLatLng(${i})">
+        </div>
+        <!-- Tags -->
+        <label>Etiquetas</label>
+        <div class="tags-wrap" id="tags_${i}"></div>
+        <div class="add-tag-row">
+          <input type="text" id="tag_input_${i}" placeholder="Gratis, Museo…" onkeydown="if(event.key==='Enter')addTag(${i})">
+          <select id="tag_color_${i}">
+            <option value="">Normal</option>
+            <option value="g">Verde</option>
+            <option value="b">Azul</option>
+          </select>
+          <button onclick="addTag(${i})">+</button>
+        </div>
+      </div>`;
+    el.appendChild(div);
+    renderTags(i);
+  });
+}
+
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+function toggleStop(i){
+  if(editingStop===i){editingStop=null;renderStopsList()}
+  else setActiveStop(i);
+}
+
+function updatePreviewName(i,v){
+  const el=document.querySelector(`.stop-card:nth-child(${i+1}) .stop-name-preview`);
+  if(el)el.textContent=v||'(sin nombre)';
+}
+function updateTimePreviews(){
+  document.querySelectorAll('.stop-time-preview').forEach((el,i)=>{if(stops[i])el.textContent=stops[i].time});
+}
+
+function updateLatLng(i){
+  const lat=parseFloat(document.getElementById('s'+i+'_lat')?.value);
+  const lng=parseFloat(document.getElementById('s'+i+'_lng')?.value);
+  if(!isNaN(lat)&&!isNaN(lng)){stops[i].lat=lat;stops[i].lng=lng;renderMarkers();updateRoute();const hint=document.querySelector('#sbody_'+i+' .stop-map-hint');if(hint)hint.textContent=`📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}`}
+}
+
+/* ══ TAGS ══ */
+function renderTags(i){
+  const wrap=document.getElementById('tags_'+i);if(!wrap)return;
+  wrap.innerHTML=(stops[i].tags||[]).map((t,ti)=>`
+    <div class="tag-chip">
+      <span style="${t.c==='g'?'color:var(--g)':t.c==='b'?'color:var(--b)':''}">${esc(t.t)}</span>
+      <button class="del-tag" onclick="removeTag(${i},${ti})">×</button>
+    </div>`).join('');
+}
+function addTag(i){
+  const inp=document.getElementById('tag_input_'+i);
+  const col=document.getElementById('tag_color_'+i);
+  const v=inp?.value.trim();if(!v)return;
+  stops[i].tags=stops[i].tags||[];
+  stops[i].tags.push({t:v,c:col?.value||''});
+  inp.value='';renderTags(i);
+}
+function removeTag(i,ti){stops[i].tags.splice(ti,1);renderTags(i)}
+
+/* ══ MARKERS ══ */
+function renderMarkers(){
+  stopMarkers.forEach(m=>map.removeLayer(m));stopMarkers.length=0;
+  stops.forEach((s,i)=>{
+    if(s.lat===null||s.lng===null)return;
+    const mk=L.marker([s.lat,s.lng],{
+      icon:L.divIcon({className:'',
+        html:`<div style="width:26px;height:26px;border-radius:50%;background:${i===0?'#5edd8a':'#5bb8f5'};color:#0a0c12;font-family:monospace;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,.3);box-shadow:0 2px 8px rgba(0,0,0,.7)">${i+1}</div>`,
+        iconSize:[26,26],iconAnchor:[13,13]}),
+      draggable:true,zIndexOffset:200
+    }).addTo(map);
+    mk.on('click',()=>setActiveStop(i));
+    mk.on('dragend',e=>{const{lat,lng}=e.target.getLatLng();stops[i].lat=parseFloat(lat.toFixed(6));stops[i].lng=parseFloat(lng.toFixed(6));updateRoute();const latEl=document.getElementById('s'+i+'_lat');const lngEl=document.getElementById('s'+i+'_lng');if(latEl)latEl.value=stops[i].lat;if(lngEl)lngEl.value=stops[i].lng;const hint=document.querySelector('#sbody_'+i+' .stop-map-hint');if(hint)hint.textContent=`📍 ${stops[i].lat.toFixed(4)}, ${stops[i].lng.toFixed(4)}`});
+    stopMarkers.push(mk);
+  });
+  const placed=stops.filter(s=>s.lat!==null&&s.lng!==null);
+  if(placed.length>0)map.fitBounds(L.latLngBounds(placed.map(s=>[s.lat,s.lng])),{padding:[40,40]});
+}
+
+async function updateRoute(){
+  if(routeLine){map.removeLayer(routeLine);routeLine=null}
+  const placed=stops.filter(s=>s.lat!==null&&s.lng!==null);
+  if(placed.length<2)return;
+  const lls=placed.map(s=>[s.lat,s.lng]);
+  routeLine=L.polyline(lls,{color:'#5bb8f5',weight:2.5,opacity:.6,dashArray:'6 4'}).addTo(map);
+  try{
+    const coords=placed.map(s=>`${s.lng},${s.lat}`).join(';');
+    const r=await fetch(`https://router.project-osrm.org/trip/v1/foot/${coords}?overview=full&geometries=geojson&source=first&destination=last&roundtrip=false`,{signal:AbortSignal.timeout(8000)});
+    const d=await r.json();
+    if(d.code==='Ok'&&d.trips?.length){
+      if(routeLine)map.removeLayer(routeLine);
+      const real=d.trips[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+      routeLine=L.polyline(real,{color:'#5bb8f5',weight:3,opacity:.85}).addTo(map);
+    }
+  }catch(e){}
+}
+
+/* ══ LOAD EXISTING ══ */
+function loadExisting(){
+  const data=LS.get('tour_data_'+EDIT_ID);
+  if(!data){toast('⚠ Tour no encontrado');return}
+  document.getElementById('t-city').value=data.city||'';
+  document.getElementById('t-country').value=data.country||'';
+  document.getElementById('t-emoji').value=data.emoji||'📍';
+  document.getElementById('t-duration').value=data.duration||'';
+  document.getElementById('t-starttime').value=data.startTime||'09:00';
+  updateTitle();
+  stops=(data.stops||[]).map((s,i)=>({...s,_id:s._id||genId()}));
+  renderStopsList();
+  renderMarkers();
+  updateRoute();
+}
+
+/* ══ SAVE ══ */
+function buildTourData(){
+  syncAllForms();
+  const meta=getTourMeta();
+  const placed=stops.filter(s=>s.lat!==null&&s.lng!==null);
+  const center=placed.length?[placed[0].lat,placed[0].lng]:(EDIT_ID?LS.get('tour_data_'+EDIT_ID)?.center||null:null);
+  return{
+    ...meta,
+    title:`${meta.emoji} ${meta.city} · Tour`,
+    header:`${meta.emoji} ${meta.city.toUpperCase()} · ${meta.startTime}`,
+    center,zoom:15,
+    stops:stops.map((s,i)=>({...s,n:i+1}))
+  };
+}
+
+function save(){
+  if(!document.getElementById('t-city').value.trim()){toast('⚠ Añade el nombre de la ciudad');return}
+  if(!stops.length){toast('⚠ Añade al menos una parada');return}
+  const data=buildTourData();
+  const idx=LS.get('tours_index',{});
+  idx[data.id]={id:data.id,city:data.city,country:data.country,emoji:data.emoji,
+    stops:stops.length,duration:data.duration,custom:true,updatedAt:Date.now()};
+  LS.set('tours_index',idx);
+  LS.set('tour_data_'+data.id,data);
+  toast('✓ Tour guardado');
+  document.getElementById('preview-btn').style.display='';
+}
+
+function preview(){
+  save();
+  const data=buildTourData();
+  window.open(`tour.html?id=${data.id}&custom=1`,'_blank');
+}
+
+/* ══ EXPORT ══ */
+function openExport(){syncAllForms();document.getElementById('export-panel').classList.add('open')}
+function closeExport(){document.getElementById('export-panel').classList.remove('open')}
+
+function downloadJSON(){
+  const data=buildTourData();
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${data.id}.json`;a.click();
+  toast('✓ Descargado');closeExport();
+}
+
+function copyLink(){
+  save();
+  const data=buildTourData();
+  const url=`${location.origin}${location.pathname.replace('editor.html','tour.html')}?id=${data.id}&custom=1`;
+  navigator.clipboard?.writeText(url).then(()=>toast('✓ Link copiado')).catch(()=>toast('Link: '+url));
+  closeExport();
+}
+
+/* ══ BACK ══ */
+function confirmBack(){
+  if(stops.length&&!confirm('¿Salir sin guardar? Los cambios se perderán si no guardas.'))return;
+  location.href='index.html';
+}
+</script>
+</body>
+</html>
