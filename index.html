@@ -65,7 +65,7 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,12,18,.97);
 .card-btn:active{transform:scale(.95)}
 .card-btn-start{background:var(--b);color:#0a0c12}
 .card-btn-edit{background:rgba(176,126,245,.12);color:var(--p);border:1px solid rgba(176,126,245,.2)}
-.card-btn-del{background:rgba(224,96,96,.08);color:var(--r);border:1px solid rgba(224,96,96,.15)}
+.card-btn-del{background:rgba(224,96,96,.08);color:var(--r);border:1px solid rgba(224,96,96,.15);flex:0 0 auto;padding:9px 14px}
 .card-badge{font-family:var(--mo);font-size:8px;padding:2px 6px;border-radius:3px;background:rgba(94,221,138,.1);color:var(--g);border:1px solid rgba(94,221,138,.2);flex-shrink:0;align-self:flex-start}
 
 /* EMPTY */
@@ -169,13 +169,11 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,12,18,.97);
 <div id="toast"></div>
 
 <script>
-/* ── Built-in tours ── */
 const BUILTIN=[
   {id:'segovia',city:'Segovia',country:'España',emoji:'🏰',stops:6,duration:'5h',file:'tours/segovia.json'},
   {id:'toledo',city:'Toledo',country:'España',emoji:'⚔️',stops:6,duration:'5h',file:'tours/toledo.json'},
 ];
 
-/* ── localStorage ── */
 const LS={
   get:(k,d=null)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},
   set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}},
@@ -189,14 +187,12 @@ function deleteCustomTour(id){
 function getHiddenBuiltins(){return LS.get('hidden_builtins',[]);}
 function hideBuiltin(id){const h=getHiddenBuiltins();if(!h.includes(id))h.push(id);LS.set('hidden_builtins',h);}
 
-/* ── Toast ── */
 let tt_=null;
 function toast(m){
   const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');
   if(tt_)clearTimeout(tt_);tt_=setTimeout(()=>t.classList.remove('on'),2800);
 }
 
-/* ── Render ── */
 function renderAll(){
   const q=(document.getElementById('search').value||'').toLowerCase();
   renderCustom(q);renderBuiltin(q);
@@ -211,14 +207,13 @@ function renderCustom(q=''){
   if(!entries.length){sec.style.display='none';return}
   sec.style.display='';
   grid.innerHTML=entries.map(t=>cardHTML(t,true)).join('');
-  // mini maps
   entries.forEach(t=>{buildMiniMap(t.id,'cmap_'+t.id,t.center||null,t.id)});
 }
 
 function renderBuiltin(q=''){
   const hidden=getHiddenBuiltins();
   const list=BUILTIN.filter(t=>!hidden.includes(t.id)&&(!q||t.city.toLowerCase().includes(q)||t.country?.toLowerCase().includes(q)));
-  document.getElementById('builtin-count').textContent=list.length+' tour'+(list!==1?'s':'');
+  document.getElementById('builtin-count').textContent=list.length+' tour'+(list.length!==1?'s':'');
   const grid=document.getElementById('builtin-grid');
   if(!list.length){grid.innerHTML=`<div class="empty"><div class="empty-ico">🗺</div><div class="empty-t">Sin resultados</div><div class="empty-s">Prueba otra ciudad.</div></div>`;return}
   grid.innerHTML=list.map(t=>cardHTML(t,false)).join('');
@@ -246,14 +241,13 @@ function cardHTML(t,custom){
       </div>
       <div class="card-foot">
         <button class="card-btn card-btn-start" onclick="event.stopPropagation();openTour('${t.id}',${custom})">▶ Iniciar</button>
-        ${custom?`<button class="card-btn card-btn-edit" onclick="event.stopPropagation();editTour('${t.id}')">✎ Editar</button>`:''}
+        ${custom?`<button class="card-btn card-btn-edit" onclick="event.stopPropagation();editTour('${t.id}')">&#x270e; Editar</button>`:''}
         <button class="card-btn card-btn-del" onclick="event.stopPropagation();confirmDelete('${t.id}','${t.city}',${custom})">🗑</button>
       </div>
     </div>
   </div>`;
 }
 
-/* ── Mini maps ── */
 const miniMaps={};
 async function buildMiniMap(id,elId,center,customId,file){
   const el=document.getElementById(elId);
@@ -288,14 +282,12 @@ async function buildMiniMap(id,elId,center,customId,file){
   miniMaps[id]=m;
 }
 
-/* ── Navigation ── */
 function openTour(id,custom){
   if(custom) location.href=`tour.html?id=${id}&custom=1`;
   else location.href=`tour.html?id=${id}`;
 }
 function editTour(id){location.href=`editor.html?id=${id}`;}
 
-/* ── Delete ── */
 let pendingDelete=null;
 function confirmDelete(id,city,custom){
   pendingDelete=id;
@@ -313,7 +305,6 @@ function confirmDelete(id,city,custom){
 }
 function closeDelModal(){document.getElementById('del-modal').classList.remove('open');pendingDelete=null;}
 
-/* ── Import ── */
 function openImport(){document.getElementById('import-modal').classList.add('open')}
 function closeImport(){document.getElementById('import-modal').classList.remove('open')}
 function dragOver(e){e.preventDefault();document.getElementById('drop-area').classList.add('drag-over')}
@@ -347,7 +338,6 @@ function importTour(data){
   renderAll();
 }
 
-/* ── Init ── */
 renderAll();
 </script>
 </body>

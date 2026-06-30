@@ -148,7 +148,6 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 .btn-seen.on{background:rgba(224,96,96,.1);color:var(--r)}
 .btn-wiki{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6)}
 .btn-reorder{background:rgba(176,126,245,.1);color:var(--p)}
-.btn-back{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6)}
 
 /* GPS marker */
 .gw{position:relative;width:44px;height:44px;display:flex;align-items:center;justify-content:center}
@@ -189,7 +188,6 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 
 <div id="map"></div>
 
-<!-- Top bar -->
 <div id="top">
   <span id="top-title">Tour</span>
   <button class="fab" onclick="location.href='index.html'" title="Volver">🏠</button>
@@ -201,7 +199,6 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 
 <div id="daybar"></div>
 
-<!-- Nav panel -->
 <div id="navp">
   <button id="nav-x" onclick="closeNav()">✕ Cerrar</button>
   <button id="nav-nxt" onclick="nextStop()">→ Sig.</button>
@@ -227,7 +224,6 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
   </div>
 </div>
 
-<!-- Reorder panel -->
 <div id="reop">
   <div id="reop-hd">
     <h2>⇅ Cambiar orden</h2>
@@ -238,7 +234,6 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
   <button id="reop-apply" onclick="applyReorder()">✓ Aplicar orden</button>
 </div>
 
-<!-- Sheet -->
 <div id="sh">
   <div id="sh-handle" onclick="closeSh()"></div>
   <div id="sh-body">
@@ -270,12 +265,10 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 <div id="toast"></div>
 
 <script>
-/* ══ PARAMS ══ */
 const params=new URLSearchParams(location.search);
 const TOUR_ID=params.get('id');
 const IS_CUSTOM=params.get('custom')==='1';
 
-/* ══ ESTADO ══ */
 let ALL_STOPS=[],STOPS=[],TOUR={},DAYS=[],curDay=1;
 const seen=new Set();
 let actIdx=null,tMode='foot',map=null,satMode=true;
@@ -286,15 +279,13 @@ let tLines=[],nLines=[];
 let nSteps=[],nIdx=0,nDestLat=null,nDestLng=null,nDestIdx=null;
 const ttCache=new Map();
 
-/* ══ CONSTANTES ══ */
 const SPEED={foot:1.25,transit:5.5,car:8.5};
 const WAIT={foot:0,transit:180,car:60};
 const MCOL={foot:'#5bb8f5',transit:'#b07ef5',car:'#f5a623'};
 const MICO={foot:'🚶',transit:'🚌',car:'🚗'};
-const TICO={'turn-left':'←','turn-right':'→','turn-sharp-left':'↰','turn-sharp-right':'↱','turn-slight-left':'↖','turn-slight-right':'↗','uturn':'↩','continue':'↑','depart':'🚦','arrive':'🏁','roundabout':'⟳','rotary':'⟳','end of road':'↑','new name':'↑','fork':'⑂','merge':'⤵'};
+const TICO={'turn-left':'←','turn-right':'→','turn-sharp-left':'↰','turn-sharp-right':'↱','turn-slight-left':'↖','turn-slight-right':'↗','uturn':'↩','continue':'↑','depart':'🚦','arrive':'🏁','roundabout':'⟳','rotary':'⟳','end of road':'↑','new name':'↑','fork':'③','merge':'⤵'};
 const TES={'turn-left':'Gira a la izquierda','turn-right':'Gira a la derecha','turn-sharp-left':'Giro cerrado izquierda','turn-sharp-right':'Giro cerrado derecha','turn-slight-left':'Dobla levemente izquierda','turn-slight-right':'Dobla levemente derecha','uturn':'Da la vuelta','continue':'Continúa recto','depart':'Sal de','arrive':'Has llegado','roundabout':'Toma la rotonda','rotary':'Toma la rotonda','end of road':'Al final gira','new name':'Continúa por','fork':'En el cruce','merge':'Incorpórate'};
 
-/* ══ UTILS ══ */
 const fmtD=m=>m<1000?Math.round(m)+'m':(m/1000).toFixed(1)+' km';
 const fmtT=s=>{const m=Math.ceil(s/60);return m<60?m+' min':Math.floor(m/60)+'h '+(m%60)+'m'};
 function hav(a,b,c,d){const R=6371000,dL=(c-a)*Math.PI/180,dl=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dl/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
@@ -302,7 +293,6 @@ let tt_=null;
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');if(tt_)clearTimeout(tt_);tt_=setTimeout(()=>t.classList.remove('on'),2800)}
 const LS={get:(k,d=null)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
 
-/* ══ LOAD TOUR ══ */
 async function loadTour(){
   if(!TOUR_ID){showError('No se especificó ningún tour.');return}
   document.getElementById('load-msg').textContent='Cargando '+TOUR_ID+'…';
@@ -341,14 +331,12 @@ function initTour(data){
   document.title=data.title||data.city||'Tour';
   updateTopTitle();
   buildDayBar();
-  // Restore seen stops
   const savedSeen=LS.get('seen_'+TOUR_ID,[]);
   savedSeen.forEach(k=>seen.add(k));
   document.getElementById('loading').style.display='none';
   initMap();
 }
 
-/* ══ DAYS ══ */
 const skey=s=>(s.name||'')+'|'+s.lat+'|'+s.lng;
 function fmtDateShort(iso){
   try{const d=new Date(iso+'T00:00:00');if(isNaN(d))return'';return d.toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'})}catch{return''}
@@ -381,7 +369,6 @@ function switchDay(n){
   if(STOPS.length)map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]});
 }
 
-/* ══ MAP ══ */
 const satL=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:19});
 const lblL=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:.8});
 const drkL=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OSM CARTO',subdomains:'abcd',maxZoom:19});
@@ -404,7 +391,6 @@ function toggleSat(){
   else{map.removeLayer(satL);map.removeLayer(lblL);drkL.addTo(map);b.classList.remove('on')}
 }
 
-/* ══ TOUR ROUTE ══ */
 async function drawTourRoute(){
   tLines.forEach(l=>map.removeLayer(l));tLines=[];
   if(STOPS.length<2)return;
@@ -423,7 +409,6 @@ async function drawTourRoute(){
   }catch(e){}
 }
 
-/* ══ MARKERS ══ */
 function mkCls(s,i){
   if(seen.has(skey(s)))return 'mk s';
   if(i===actIdx)return 'mk ac';
@@ -441,7 +426,6 @@ function buildMarkers(){
   });
 }
 
-/* ══ TIMELINE ══ */
 function buildBar(){
   const el=document.getElementById('bar');el.innerHTML='';
   STOPS.forEach((s,i,a)=>{
@@ -455,7 +439,6 @@ function buildBar(){
   });
 }
 
-/* ══ SHEET ══ */
 async function openSh(i){
   actIdx=i;const s=STOPS[i];
   document.getElementById('sh-n').textContent=`Parada ${i+1} de ${STOPS.length}`+(DAYS.length>1?` · Día ${curDay}`:'');
@@ -503,7 +486,6 @@ function toggleSeen(){
   const b=document.getElementById('btn-seen');b.textContent=isDone?'✕ Por ver':'✓ Visto';b.classList.toggle('on',isDone);
   toast(isDone?'✓ Marcado como visto':'↩ Marcado por ver');
   saveSeen();buildMarkers();buildBar();
-  // check completion
   if(STOPS.every(s=>seen.has(skey(s))))setTimeout(()=>toast(curDay<DAYS.length?'✓ ¡Día completado!':'🎉 ¡Tour completado!'),400);
 }
 function goWiki(){if(actIdx!==null&&STOPS[actIdx].wiki)window.open(STOPS[actIdx].wiki,'_blank')}
@@ -523,7 +505,6 @@ function deleteStop(){
   toast('🗑 Parada eliminada');
 }
 
-/* ══ REORDER ══ */
 let dragSrc=null,tdSrc=null,tdGhost=null;
 function openReorder(){closeSh();renderReorderList();document.getElementById('reop').classList.add('open')}
 function closeReorder(){document.getElementById('reop').classList.remove('open')}
@@ -570,7 +551,6 @@ function reorderStops(from,to){
 }
 function applyReorder(){closeReorder();ttCache.clear();buildMarkers();buildBar();drawTourRoute();toast('✓ Orden actualizado · Recalculando ruta…');map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]})}
 
-/* ══ NAVIGATION ══ */
 async function getTT(fLa,fLo,tLa,tLo,mode){
   const k=`${fLa.toFixed(3)},${fLo.toFixed(3)}-${tLa.toFixed(3)},${tLo.toFixed(3)}-${mode}`;
   if(ttCache.has(k))return ttCache.get(k);
@@ -663,7 +643,6 @@ function trackNav(lat,lng){
 
 function closeNav(){document.getElementById('navp').classList.remove('open');nLines.forEach(l=>map.removeLayer(l));nLines=[];nSteps=[];nIdx=0;nDestLat=null;nDestLng=null;nDestIdx=null;document.getElementById('nav-upcoming').innerHTML='';document.getElementById('nv-eta').classList.remove('warn')}
 
-/* ══ GPS ══ */
 function buildGI(){return L.divIcon({className:'',html:`<div class="gw"><div class="gr"></div><div class="gb"></div><div class="gc hid" id="gps-cone"></div></div>`,iconSize:[44,44],iconAnchor:[22,22]})}
 function updCone(h){const c=document.getElementById('gps-cone');if(!c)return;c.classList.remove('hid');c.style.transform=`rotate(${h}deg)`}
 function onOrient(e){
@@ -718,13 +697,11 @@ function stopGPS(){
 }
 function centerMe(){if(myLat)map.setView([myLat,myLng],17,{animate:true});else toast('Activa el GPS')}
 
-/* SWIPE */
 let ty=0;
 document.getElementById('sh').addEventListener('touchstart',e=>{ty=e.touches[0].clientY},{passive:true});
 document.getElementById('sh').addEventListener('touchmove',e=>{if(e.touches[0].clientY-ty>60)closeSh()},{passive:true});
 document.getElementById('navp').addEventListener('click',e=>e.stopPropagation());
 
-/* ══ INIT ══ */
 loadTour();
 </script>
 </body>
