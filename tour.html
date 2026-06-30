@@ -127,6 +127,7 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 #sh-body::-webkit-scrollbar{display:none}
 .sh-n{font-family:var(--mo);font-size:9px;color:var(--b);letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px}
 .sh-nm{font-size:19px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:2px}
+.sh-addr{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.4);margin-bottom:4px;line-height:1.3}
 .sh-tm{font-family:var(--mo);font-size:10px;color:var(--b);margin-bottom:8px}
 .sh-travel{display:none;font-family:var(--mo);font-size:10px;background:rgba(255,255,255,.04);border-radius:6px;padding:7px 10px;margin-bottom:10px;gap:6px;align-items:center;flex-wrap:wrap}
 .sh-travel.on{display:flex}
@@ -239,6 +240,7 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
   <div id="sh-body">
     <div class="sh-n" id="sh-n"></div>
     <div class="sh-nm" id="sh-nm"></div>
+    <div class="sh-addr" id="sh-addr"></div>
     <div class="sh-tm" id="sh-tm"></div>
     <div class="sh-travel" id="sh-travel">
       <span id="sh-tv" class="sh-tv"></span>
@@ -443,6 +445,7 @@ async function openSh(i){
   actIdx=i;const s=STOPS[i];
   document.getElementById('sh-n').textContent=`Parada ${i+1} de ${STOPS.length}`+(DAYS.length>1?` · Día ${curDay}`:'');
   document.getElementById('sh-nm').textContent=s.name;
+  document.getElementById('sh-addr').textContent=s.address||'';
   document.getElementById('sh-tm').textContent=s.time+' · '+s.dur;
   document.getElementById('sh-ds').textContent=s.desc||'';
   document.getElementById('sh-tags').innerHTML=(s.tags||[]).map(t=>`<span class="tag ${t.c||''}">${t.t}</span>`).join('');
