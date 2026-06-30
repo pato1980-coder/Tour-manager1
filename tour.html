@@ -25,6 +25,16 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 .fab.on{background:var(--b);color:#0a0c12;border-color:transparent}
 .fab.gon{background:var(--g);color:#0a0c12;border-color:transparent}
 
+/* DAY BAR */
+#daybar{position:fixed;top:calc(env(safe-area-inset-top,0) + 56px);left:0;right:0;z-index:99;
+  display:none;gap:6px;padding:0 12px;overflow-x:auto;scrollbar-width:none}
+#daybar::-webkit-scrollbar{display:none}
+#daybar.on{display:flex}
+.dchip{flex-shrink:0;padding:6px 12px;border-radius:14px;background:rgba(11,14,22,.85);
+  border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);font-family:var(--mo);
+  font-size:9px;cursor:pointer;white-space:nowrap;backdrop-filter:blur(8px)}
+.dchip.on{background:var(--b);color:#0a0c12;border-color:transparent;font-weight:700}
+
 /* NAV PANEL */
 #navp{position:fixed;top:0;left:0;right:0;z-index:300;
   background:rgba(10,12,18,.97);
@@ -189,6 +199,8 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
   <button class="fab" id="fab-reorder" onclick="openReorder()" style="background:rgba(176,126,245,.18);color:var(--p)">⇅</button>
 </div>
 
+<div id="daybar"></div>
+
 <!-- Nav panel -->
 <div id="navp">
   <button id="nav-x" onclick="closeNav()">✕ Cerrar</button>
@@ -264,7 +276,7 @@ const TOUR_ID=params.get('id');
 const IS_CUSTOM=params.get('custom')==='1';
 
 /* ══ ESTADO ══ */
-let STOPS=[],TOUR={};
+let ALL_STOPS=[],STOPS=[],TOUR={},DAYS=[],curDay=1;
 const seen=new Set();
 let actIdx=null,tMode='foot',map=null,satMode=true;
 let myLat=null,myLng=null,myMk=null,myAcc=null,gpsOn=false;
@@ -322,14 +334,51 @@ function showError(msg){
 
 function initTour(data){
   TOUR=data;
-  STOPS=data.stops.map((s,i)=>({...s,n:i+1}));
+  DAYS=(data.days&&data.days.length)?data.days.map(d=>({date:d.date||'',start:d.start||'09:00'})):[{date:data.date||'',start:data.startTime||'09:00'}];
+  ALL_STOPS=data.stops.map(s=>({...s,day:s.day||1}));
+  curDay=1;
+  rebuildDayStops();
   document.title=data.title||data.city||'Tour';
-  document.getElementById('top-title').textContent=data.header||(data.emoji||'📍')+' '+data.city;
+  updateTopTitle();
+  buildDayBar();
   // Restore seen stops
   const savedSeen=LS.get('seen_'+TOUR_ID,[]);
-  savedSeen.forEach(i=>seen.add(i));
+  savedSeen.forEach(k=>seen.add(k));
   document.getElementById('loading').style.display='none';
   initMap();
+}
+
+/* ══ DAYS ══ */
+const skey=s=>(s.name||'')+'|'+s.lat+'|'+s.lng;
+function fmtDateShort(iso){
+  try{const d=new Date(iso+'T00:00:00');if(isNaN(d))return'';return d.toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'})}catch{return''}
+}
+function rebuildDayStops(){
+  STOPS=ALL_STOPS.filter(s=>s.day===curDay);
+  STOPS.forEach((s,i)=>s.n=i+1);
+}
+function updateTopTitle(){
+  const d=DAYS[curDay-1];
+  const dayPart=DAYS.length>1?` · Día ${curDay}/${DAYS.length}`:'';
+  const datePart=d&&d.date?' · '+fmtDateShort(d.date):'';
+  document.getElementById('top-title').textContent=(TOUR.header||(TOUR.emoji||'📍')+' '+TOUR.city)+dayPart+datePart;
+}
+function buildDayBar(){
+  const el=document.getElementById('daybar');
+  if(DAYS.length<2){el.classList.remove('on');el.innerHTML='';return}
+  el.classList.add('on');
+  el.innerHTML=DAYS.map((d,i)=>{
+    const n=i+1;
+    const lbl='Día '+n+(d.date?' · '+fmtDateShort(d.date):'');
+    return `<div class="dchip${n===curDay?' on':''}" onclick="switchDay(${n})">${lbl}</div>`;
+  }).join('');
+}
+function switchDay(n){
+  if(n===curDay)return;
+  curDay=n;closeSh();closeNav();
+  rebuildDayStops();buildDayBar();updateTopTitle();
+  buildMarkers();buildBar();drawTourRoute();
+  if(STOPS.length)map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]});
 }
 
 /* ══ MAP ══ */
@@ -375,8 +424,8 @@ async function drawTourRoute(){
 }
 
 /* ══ MARKERS ══ */
-function mkCls(i){
-  if(seen.has(i))return 'mk s';
+function mkCls(s,i){
+  if(seen.has(skey(s)))return 'mk s';
   if(i===actIdx)return 'mk ac';
   if(i===0)return 'mk fi';
   if(i===STOPS.length-1)return 'mk la';
@@ -385,7 +434,7 @@ function mkCls(i){
 function buildMarkers(){
   mks.forEach(m=>map.removeLayer(m));mks.length=0;
   STOPS.forEach((s,i)=>{
-    const icon=L.divIcon({className:'',html:`<div class="${mkCls(i)}">${s.n}</div>`,iconSize:[26,26],iconAnchor:[13,13]});
+    const icon=L.divIcon({className:'',html:`<div class="${mkCls(s,i)}">${s.n}</div>`,iconSize:[26,26],iconAnchor:[13,13]});
     const mk=L.marker([s.lat,s.lng],{icon,zIndexOffset:200}).addTo(map);
     mk.on('click',()=>openSh(i));
     mks.push(mk);
@@ -396,7 +445,7 @@ function buildMarkers(){
 function buildBar(){
   const el=document.getElementById('bar');el.innerHTML='';
   STOPS.forEach((s,i,a)=>{
-    const isDone=seen.has(i);
+    const isDone=seen.has(skey(s));
     const nc=isDone?'s':i===0?'fi':i===a.length-1?'la':'u';
     const d=document.createElement('div');d.className='tl';
     d.innerHTML=`<div class="tl-n ${nc}">${s.n}</div><div class="tl-lbl">${s.name.split('·')[0].trim()}</div><div class="tl-t">${s.time}</div>`;
@@ -409,12 +458,12 @@ function buildBar(){
 /* ══ SHEET ══ */
 async function openSh(i){
   actIdx=i;const s=STOPS[i];
-  document.getElementById('sh-n').textContent=`Parada ${i+1} de ${STOPS.length}`;
+  document.getElementById('sh-n').textContent=`Parada ${i+1} de ${STOPS.length}`+(DAYS.length>1?` · Día ${curDay}`:'');
   document.getElementById('sh-nm').textContent=s.name;
   document.getElementById('sh-tm').textContent=s.time+' · '+s.dur;
   document.getElementById('sh-ds').textContent=s.desc||'';
   document.getElementById('sh-tags').innerHTML=(s.tags||[]).map(t=>`<span class="tag ${t.c||''}">${t.t}</span>`).join('');
-  const isDone=seen.has(i);
+  const isDone=seen.has(skey(s));
   const bseen=document.getElementById('btn-seen');
   bseen.textContent=isDone?'✕ Por ver':'✓ Visto';bseen.classList.toggle('on',isDone);
   const tEl=document.getElementById('sh-travel');tEl.classList.remove('on');
@@ -448,24 +497,27 @@ document.getElementById('sh-handle').addEventListener('click',closeSh);
 function saveSeen(){LS.set('seen_'+TOUR_ID,[...seen]);}
 function toggleSeen(){
   if(actIdx===null)return;
-  if(seen.has(actIdx))seen.delete(actIdx);else seen.add(actIdx);
-  const isDone=seen.has(actIdx);
+  const k=skey(STOPS[actIdx]);
+  if(seen.has(k))seen.delete(k);else seen.add(k);
+  const isDone=seen.has(k);
   const b=document.getElementById('btn-seen');b.textContent=isDone?'✕ Por ver':'✓ Visto';b.classList.toggle('on',isDone);
   toast(isDone?'✓ Marcado como visto':'↩ Marcado por ver');
   saveSeen();buildMarkers();buildBar();
   // check completion
-  if([...Array(STOPS.length).keys()].every(i=>seen.has(i)))setTimeout(()=>toast('🎉 ¡Tour completado!'),400);
+  if(STOPS.every(s=>seen.has(skey(s))))setTimeout(()=>toast(curDay<DAYS.length?'✓ ¡Día completado!':'🎉 ¡Tour completado!'),400);
 }
 function goWiki(){if(actIdx!==null&&STOPS[actIdx].wiki)window.open(STOPS[actIdx].wiki,'_blank')}
 function deleteStop(){
   if(actIdx===null)return;
   const s=STOPS[actIdx];
   if(!confirm(`¿Eliminar "${s.name}" de este tour?`))return;
-  STOPS.splice(actIdx,1);
-  STOPS.forEach((s,i)=>s.n=i+1);
+  const gi=ALL_STOPS.indexOf(s);
+  if(gi>-1)ALL_STOPS.splice(gi,1);
+  rebuildDayStops();
+  seen.delete(skey(s));saveSeen();
   if(IS_CUSTOM){
     const data=LS.get('tour_data_'+TOUR_ID);
-    if(data){data.stops=STOPS;LS.set('tour_data_'+TOUR_ID,data);}
+    if(data){data.stops=ALL_STOPS.map(({n,...rest})=>rest);data.days=DAYS;LS.set('tour_data_'+TOUR_ID,data);}
   }
   closeSh();buildMarkers();buildBar();drawTourRoute();
   toast('🗑 Parada eliminada');
@@ -513,6 +565,7 @@ function reorderStops(from,to){
   const moved=STOPS.splice(from,1)[0];STOPS.splice(to,0,moved);
   let[h,m]=STOPS[0].time.split(':').map(Number);
   STOPS.forEach((s,i)=>{s.n=i+1;if(i>0){s.time=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`}m+=s.stayMin+10;h+=Math.floor(m/60);m%=60});
+  ALL_STOPS=ALL_STOPS.filter(s=>s.day!==curDay).concat(STOPS);
   renderReorderList();
 }
 function applyReorder(){closeReorder();ttCache.clear();buildMarkers();buildBar();drawTourRoute();toast('✓ Orden actualizado · Recalculando ruta…');map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]})}
@@ -532,7 +585,11 @@ async function getTT(fLa,fLo,tLa,tLo,mode){
 }
 
 function setMode(m){tMode=m;['foot','transit','car'].forEach(k=>document.getElementById('nm-'+k)?.classList.toggle('on',k===m));ttCache.clear();if(nDestLat!==null)navTo(nDestLat,nDestLng,nDestIdx)}
-function nextStop(){const next=STOPS.findIndex((s,i)=>!seen.has(i));if(next<0){toast('¡Tour completado! 🎉');return}actIdx=next;startNav()}
+function nextStop(){
+  const next=STOPS.findIndex(s=>!seen.has(skey(s)));
+  if(next<0){toast(curDay<DAYS.length?'✓ Día completado — desliza al Día '+(curDay+1):'¡Tour completado! 🎉');return}
+  actIdx=next;startNav();
+}
 function startNav(){
   if(actIdx===null)return;closeSh();
   if(!myLat){document.getElementById('navp').classList.add('open');document.getElementById('nav-ins').textContent='Activa el GPS primero';document.getElementById('nav-arr').textContent='📍';return}
@@ -597,7 +654,7 @@ function trackNav(lat,lng){
   if(!nSteps.length||nDestLat===null||nIdx>=nSteps.length)return;
   const dEnd=hav(lat,lng,nDestLat,nDestLng);
   document.getElementById('nv-rem').textContent=fmtD(dEnd);
-  if(dEnd<15){const s=nDestIdx!==null?STOPS[nDestIdx]:null;if(s&&!seen.has(nDestIdx)){seen.add(nDestIdx);saveSeen();buildBar();buildMarkers()}toast('🏁 Has llegado'+(s?' a '+s.name:''));closeNav();return}
+  if(dEnd<15){const s=nDestIdx!==null?STOPS[nDestIdx]:null;if(s&&!seen.has(skey(s))){seen.add(skey(s));saveSeen();buildBar();buildMarkers()}toast('🏁 Has llegado'+(s?' a '+s.name:''));closeNav();return}
   const TRIGGER=20;
   while(nIdx<nSteps.length-1){const nextStep=nSteps[nIdx+1];const dToNext=hav(lat,lng,nextStep.lat,nextStep.lng);if(dToNext<TRIGGER){nIdx++;updNav();renderUpcoming();if(navigator.vibrate)navigator.vibrate(60);toast(nSteps[nIdx].ico+' '+nSteps[nIdx].txt+(nSteps[nIdx].st?' por '+nSteps[nIdx].st:''))}else break}
   const nextManeuver=nSteps[nIdx+1];if(nextManeuver)document.getElementById('nav-dist').textContent=fmtD(hav(lat,lng,nextManeuver.lat,nextManeuver.lng));
@@ -631,7 +688,7 @@ function onPos(pos){
   if(cH!==null)Promise.resolve().then(()=>updCone(cH));
   if(myAcc)map.removeLayer(myAcc);
   myAcc=L.circle([la,lo],{radius:ac,color:'#5bb8f5',fillColor:'#5bb8f5',fillOpacity:.06,weight:1}).addTo(map);
-  document.getElementById('top-title').textContent=(TOUR.header||TOUR.city||'Tour')+` · GPS ±${Math.round(ac)}m`;
+  document.getElementById('top-title').textContent=(TOUR.header||TOUR.city||'Tour')+(DAYS.length>1?` · Día ${curDay}/${DAYS.length}`:'')+` · GPS ±${Math.round(ac)}m`;
   if(nDestLat!==null&&nSteps.length)trackNav(la,lo);
 }
 function onErr(e){

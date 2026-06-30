@@ -56,6 +56,12 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
 .stops-hd span{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.1em;text-transform:uppercase}
 .add-stop-btn{background:rgba(94,221,138,.1);color:var(--g);border:1px solid rgba(94,221,138,.2);border-radius:7px;padding:6px 12px;font-family:var(--mo);font-size:9px;font-weight:700;cursor:pointer;transition:all .15s}
 .add-stop-btn:hover{background:rgba(94,221,138,.2)}
+.day-section-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:var(--mo);font-size:9px;color:var(--b);letter-spacing:.08em;text-transform:uppercase;margin:14px 0 8px;padding-bottom:6px;border-bottom:1px solid rgba(91,184,245,.15)}
+.day-section-hd .add-stop-btn{flex-shrink:0}
+.day-empty{padding:10px 0;font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.25)}
+.day-row{display:flex;gap:8px;align-items:flex-end;margin-bottom:8px}
+.day-row .field{margin-bottom:0}
+.day-row .stop-act{margin-bottom:9px;font-size:14px}
 
 /* STOP CARD */
 .stop-card{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;transition:border-color .15s}
@@ -154,17 +160,19 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
               <input type="text" id="t-duration" placeholder="5h">
             </div>
           </div>
-          <div class="field">
-            <label>Hora inicio</label>
-            <input type="time" id="t-starttime" value="09:00" onchange="recalcAllTimes()">
-          </div>
+        </div>
+
+        <!-- Days -->
+        <div class="meta-section">
+          <h3>Días del tour</h3>
+          <div id="days-list"></div>
+          <button class="add-stop-btn" onclick="addDay()">+ Añadir día</button>
         </div>
 
         <!-- Stops -->
         <div>
           <div class="stops-hd">
             <span>Paradas (<span id="stop-count">0</span>)</span>
-            <button class="add-stop-btn" onclick="addStop()">+ Añadir parada</button>
           </div>
           <div id="stops-list"></div>
           <div id="stops-empty" style="padding:24px;text-align:center;font-family:var(--mo);font-size:10px;color:rgba(255,255,255,.25)">
@@ -208,6 +216,7 @@ const LS={
 
 /* ══ STATE ══ */
 let stops=[];
+let days=[{date:'',start:'09:00'}];
 let map=null;
 let placingStopIdx=null; // index of stop waiting for map click
 let editingStop=null;
@@ -222,8 +231,54 @@ function getTourMeta(){
     country:document.getElementById('t-country').value.trim(),
     emoji:document.getElementById('t-emoji').value.trim()||'📍',
     duration:document.getElementById('t-duration').value.trim()||'?h',
-    startTime:document.getElementById('t-starttime').value||'09:00',
+    startTime:days[0]?.start||'09:00',
   };
+}
+
+/* ══ DAYS ══ */
+function fmtDateLong(iso){
+  if(!iso)return'';
+  const d=new Date(iso+'T00:00:00');
+  if(isNaN(d))return'';
+  return d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+}
+function fmtDateShort(iso){
+  if(!iso)return'';
+  const d=new Date(iso+'T00:00:00');
+  if(isNaN(d))return'';
+  return d.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
+}
+function renderDaysList(){
+  const el=document.getElementById('days-list');
+  el.innerHTML=days.map((d,i)=>`
+    <div class="day-row">
+      <div class="field" style="flex:1.4">
+        <label>Día ${i+1} — Fecha</label>
+        <input type="date" value="${d.date||''}" onchange="setDayDate(${i},this.value)">
+      </div>
+      <div class="field" style="max-width:90px">
+        <label>Inicio</label>
+        <input type="time" value="${d.start||'09:00'}" onchange="setDayStart(${i},this.value)">
+      </div>
+      ${days.length>1?`<button class="stop-act" title="Eliminar día" onclick="removeDay(${i})">🗑</button>`:''}
+    </div>`).join('');
+}
+function setDayDate(i,v){days[i].date=v;renderStopsList()}
+function setDayStart(i,v){days[i].start=v||'09:00';recalcTimes();renderStopsList()}
+function addDay(){
+  days.push({date:'',start:'09:00'});
+  renderDaysList();
+  toast('✓ Día '+days.length+' añadido');
+}
+function removeDay(i){
+  const dayNum=i+1;
+  const affected=stops.filter(s=>s.day===dayNum).length;
+  if(affected&&!confirm(`Día ${dayNum} tiene ${affected} parada(s). Se eliminarán también. ¿Continuar?`))return;
+  stops=stops.filter(s=>s.day!==dayNum);
+  stops.forEach(s=>{if(s.day>dayNum)s.day--});
+  days.splice(i,1);
+  recalcTimes();renderDaysList();renderStopsList();renderMarkers();updateRoute();
+  toast('🗑 Día eliminado');
 }
 function updateTitle(){
   const city=document.getElementById('t-city').value.trim()||'Nuevo tour';
@@ -240,6 +295,7 @@ window.addEventListener('load',()=>{
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OSM CARTO'}).addTo(map);
   L.control.attribution({position:'bottomright',prefix:false}).addTo(map);
   map.on('click',onMapClick);
+  renderDaysList();
   if(EDIT_ID)loadExisting();
 });
 
@@ -270,23 +326,27 @@ function stopPlacing(){
 
 /* ══ STOPS ══ */
 function genId(){return 's'+Date.now()+Math.random().toString(36).slice(2,6)}
-function defaultStop(idx){
-  const startTime=document.getElementById('t-starttime').value||'09:00';
+function defaultStop(dayNum){
+  const day=days[dayNum-1]||days[0];
+  const startTime=day?.start||'09:00';
   let[h,m]=startTime.split(':').map(Number);
-  stops.slice(0,idx).forEach(s=>{m+=s.stayMin+10;h+=Math.floor(m/60);m%=60});
-  return{_id:genId(),name:'Parada '+(idx+1),time:`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`,dur:'30 min · gratis',stayMin:30,desc:'',lat:null,lng:null,tags:[],wiki:''};
+  stops.filter(s=>s.day===dayNum).forEach(s=>{m+=s.stayMin+10;h+=Math.floor(m/60);m%=60});
+  return{_id:genId(),day:dayNum,name:'Parada',time:`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`,dur:'30 min · gratis',stayMin:30,desc:'',lat:null,lng:null,tags:[],wiki:''};
 }
 
-function addStop(){
-  const s=defaultStop(stops.length);
-  stops.push(s);
+function addStop(dayNum){
+  dayNum=dayNum||days.length;
+  const s=defaultStop(dayNum);
+  let insertAt=stops.length;
+  for(let i=0;i<stops.length;i++){if(stops[i].day>dayNum){insertAt=i;break}}
+  stops.splice(insertAt,0,s);
   renderStopsList();
   renderMarkers();
-  setActiveStop(stops.length-1);
+  setActiveStop(insertAt);
   // scroll to bottom
   const sl=document.getElementById('sidebar-scroll');sl.scrollTop=sl.scrollHeight;
   toast('✓ Parada añadida — haz clic en el mapa para ubicarla');
-  startPlacing(stops.length-1);
+  startPlacing(insertAt);
 }
 
 function removeStop(idx){
@@ -299,19 +359,31 @@ function removeStop(idx){
 }
 
 function moveStop(idx,dir){
-  const to=idx+dir;
-  if(to<0||to>=stops.length)return;
-  [stops[idx],stops[to]]=[stops[to],stops[idx]];
+  const dayNum=stops[idx].day;
+  const sameDay=stops.map((_,i)=>i).filter(i=>stops[i].day===dayNum);
+  const pos=sameDay.indexOf(idx);
+  const newPos=pos+dir;
+  if(newPos<0||newPos>=sameDay.length)return;
+  const other=sameDay[newPos];
+  [stops[idx],stops[other]]=[stops[other],stops[idx]];
+  recalcTimes();renderStopsList();renderMarkers();updateRoute();
+}
+
+function changeStopDay(idx,val){
+  stops[idx].day=parseInt(val)||1;
   recalcTimes();renderStopsList();renderMarkers();updateRoute();
 }
 
 function recalcTimes(){
-  if(!stops.length)return;
-  const startTime=document.getElementById('t-starttime').value||'09:00';
-  let[h,m]=startTime.split(':').map(Number);
-  stops.forEach((s,i)=>{
-    s.time=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-    m+=s.stayMin+10;h+=Math.floor(m/60);m%=60;
+  days.forEach((day,di)=>{
+    const dayNum=di+1;
+    const dayStops=stops.filter(s=>s.day===dayNum);
+    if(!dayStops.length)return;
+    let[h,m]=(day.start||'09:00').split(':').map(Number);
+    dayStops.forEach(s=>{
+      s.time=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      m+=s.stayMin+10;h+=Math.floor(m/60);m%=60;
+    });
   });
 }
 
@@ -320,10 +392,6 @@ function recalcAllTimes(){recalcTimes();renderStopsList()}
 function setActiveStop(idx){
   editingStop=idx;
   renderStopsList();
-  // open body
-  const bodies=document.querySelectorAll('.stop-body');
-  bodies.forEach((b,i)=>{if(i===idx)b.classList.add('open');else b.classList.remove('open')});
-  document.querySelectorAll('.stop-card').forEach((c,i)=>c.classList.toggle('active',i===idx));
   // center map on stop
   const s=stops[idx];
   if(s.lat&&s.lng)map.panTo([s.lat,s.lng],{animate:true});
@@ -352,69 +420,87 @@ function renderStopsList(){
   empty.style.display=stops.length?'none':'block';
   document.getElementById('preview-btn').style.display=stops.length?'':'none';
   el.innerHTML='';
-  stops.forEach((s,i)=>{
-    const isOpen=editingStop===i;
-    const div=document.createElement('div');
-    div.className='stop-card'+(isOpen?' active':'');
-    div.dataset.idx=i;
-    const hasCoords=s.lat!==null&&s.lng!==null;
-    div.innerHTML=`
-      <div class="stop-head" onclick="toggleStop(${i})">
-        <div class="stop-num${i===0?' first':''}">${i+1}</div>
-        <div class="stop-name-preview">${s.name}</div>
-        <div class="stop-time-preview">${s.time}</div>
-        <div class="stop-actions">
-          ${i>0?`<button class="stop-act" title="Subir" onclick="event.stopPropagation();moveStop(${i},-1)">↑</button>`:''}
-          ${i<stops.length-1?`<button class="stop-act" title="Bajar" onclick="event.stopPropagation();moveStop(${i},1)">↓</button>`:''}
-          <button class="stop-act" title="Eliminar" onclick="event.stopPropagation();removeStop(${i})">🗑</button>
+  days.forEach((day,di)=>{
+    const dayNum=di+1;
+    const dayStops=stops.map((s,i)=>({s,i})).filter(o=>o.s.day===dayNum);
+    const hd=document.createElement('div');
+    hd.className='day-section-hd';
+    hd.innerHTML=`<span>📅 Día ${dayNum}${day.date?' · '+fmtDateLong(day.date):''}</span><button class="add-stop-btn" onclick="addStop(${dayNum})">+ Parada</button>`;
+    el.appendChild(hd);
+    if(!dayStops.length){
+      const e=document.createElement('div');e.className='day-empty';e.textContent='Sin paradas en este día';el.appendChild(e);
+    }
+    dayStops.forEach(({s,i},localPos)=>{
+      const isOpen=editingStop===i;
+      const div=document.createElement('div');
+      div.className='stop-card'+(isOpen?' active':'');
+      div.dataset.idx=i;
+      const hasCoords=s.lat!==null&&s.lng!==null;
+      const isFirst=localPos===0,isLast=localPos===dayStops.length-1;
+      div.innerHTML=`
+        <div class="stop-head" onclick="toggleStop(${i})">
+          <div class="stop-num${isFirst?' first':''}">${localPos+1}</div>
+          <div class="stop-name-preview">${s.name}</div>
+          <div class="stop-time-preview">${s.time}</div>
+          <div class="stop-actions">
+            ${!isFirst?`<button class="stop-act" title="Subir" onclick="event.stopPropagation();moveStop(${i},-1)">↑</button>`:''}
+            ${!isLast?`<button class="stop-act" title="Bajar" onclick="event.stopPropagation();moveStop(${i},1)">↓</button>`:''}
+            <button class="stop-act" title="Eliminar" onclick="event.stopPropagation();removeStop(${i})">🗑</button>
+          </div>
         </div>
-      </div>
-      <div class="stop-body${isOpen?' open':''}" id="sbody_${i}">
-        <div class="stop-map-hint">${hasCoords?`📍 ${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}`:'⚠ Sin ubicación en el mapa'}</div>
-        <button class="drop-pin-btn${placingStopIdx===i?' waiting':''}" onclick="startPlacing(${i})">
-          ${placingStopIdx===i?'⏳ Haz clic en el mapa…':'📍 Colocar en el mapa'}
-        </button>
-        <div class="field" style="margin-top:10px">
-          <label>Nombre</label>
-          <input type="text" id="s${i}_name" value="${esc(s.name)}" oninput="stops[${i}].name=this.value;updatePreviewName(${i},this.value)">
-        </div>
-        <div class="field-row">
+        <div class="stop-body${isOpen?' open':''}" id="sbody_${i}">
+          <div class="stop-map-hint">${hasCoords?`📍 ${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}`:'⚠ Sin ubicación en el mapa'}</div>
+          <button class="drop-pin-btn${placingStopIdx===i?' waiting':''}" onclick="startPlacing(${i})">
+            ${placingStopIdx===i?'⏳ Haz clic en el mapa…':'📍 Colocar en el mapa'}
+          </button>
+          <div class="field" style="margin-top:10px">
+            <label>Nombre</label>
+            <input type="text" id="s${i}_name" value="${esc(s.name)}" oninput="stops[${i}].name=this.value;updatePreviewName(${i},this.value)">
+          </div>
+          ${days.length>1?`<div class="field">
+            <label>Día</label>
+            <select id="s${i}_day" onchange="changeStopDay(${i},this.value)">
+              ${days.map((d,ddi)=>`<option value="${ddi+1}" ${s.day===ddi+1?'selected':''}>Día ${ddi+1}${d.date?' · '+fmtDateShort(d.date):''}</option>`).join('')}
+            </select>
+          </div>`:''}
+          <div class="field-row">
+            <div class="field">
+              <label>Duración</label>
+              <input type="text" id="s${i}_dur" value="${esc(s.dur)}" placeholder="30 min · gratis" oninput="stops[${i}].dur=this.value">
+            </div>
+            <div class="field" style="max-width:80px">
+              <label>Min estancia</label>
+              <input type="text" id="s${i}_stay" value="${s.stayMin}" oninput="stops[${i}].stayMin=parseInt(this.value)||30;recalcTimes();updateTimePreviews()">
+            </div>
+          </div>
           <div class="field">
-            <label>Duración</label>
-            <input type="text" id="s${i}_dur" value="${esc(s.dur)}" placeholder="30 min · gratis" oninput="stops[${i}].dur=this.value">
+            <label>Descripción</label>
+            <textarea id="s${i}_desc" rows="3" placeholder="Descripción de la parada…" style="resize:vertical" oninput="stops[${i}].desc=this.value">${esc(s.desc)}</textarea>
           </div>
-          <div class="field" style="max-width:80px">
-            <label>Min estancia</label>
-            <input type="text" id="s${i}_stay" value="${s.stayMin}" oninput="stops[${i}].stayMin=parseInt(this.value)||30;recalcTimes();updateTimePreviews()">
+          <div class="field">
+            <label>Wikipedia URL</label>
+            <input type="text" id="s${i}_wiki" value="${esc(s.wiki)}" placeholder="https://es.wikipedia.org/wiki/…" oninput="stops[${i}].wiki=this.value">
           </div>
-        </div>
-        <div class="field">
-          <label>Descripción</label>
-          <textarea id="s${i}_desc" rows="3" placeholder="Descripción de la parada…" style="resize:vertical" oninput="stops[${i}].desc=this.value">${esc(s.desc)}</textarea>
-        </div>
-        <div class="field">
-          <label>Wikipedia URL</label>
-          <input type="text" id="s${i}_wiki" value="${esc(s.wiki)}" placeholder="https://es.wikipedia.org/wiki/…" oninput="stops[${i}].wiki=this.value">
-        </div>
-        <div class="coords-row">
-          <input type="text" id="s${i}_lat" placeholder="Lat" value="${s.lat??''}" oninput="updateLatLng(${i})">
-          <input type="text" id="s${i}_lng" placeholder="Lng" value="${s.lng??''}" oninput="updateLatLng(${i})">
-        </div>
-        <!-- Tags -->
-        <label>Etiquetas</label>
-        <div class="tags-wrap" id="tags_${i}"></div>
-        <div class="add-tag-row">
-          <input type="text" id="tag_input_${i}" placeholder="Gratis, Museo…" onkeydown="if(event.key==='Enter')addTag(${i})">
-          <select id="tag_color_${i}">
-            <option value="">Normal</option>
-            <option value="g">Verde</option>
-            <option value="b">Azul</option>
-          </select>
-          <button onclick="addTag(${i})">+</button>
-        </div>
-      </div>`;
-    el.appendChild(div);
-    renderTags(i);
+          <div class="coords-row">
+            <input type="text" id="s${i}_lat" placeholder="Lat" value="${s.lat??''}" oninput="updateLatLng(${i})">
+            <input type="text" id="s${i}_lng" placeholder="Lng" value="${s.lng??''}" oninput="updateLatLng(${i})">
+          </div>
+          <!-- Tags -->
+          <label>Etiquetas</label>
+          <div class="tags-wrap" id="tags_${i}"></div>
+          <div class="add-tag-row">
+            <input type="text" id="tag_input_${i}" placeholder="Gratis, Museo…" onkeydown="if(event.key==='Enter')addTag(${i})">
+            <select id="tag_color_${i}">
+              <option value="">Normal</option>
+              <option value="g">Verde</option>
+              <option value="b">Azul</option>
+            </select>
+            <button onclick="addTag(${i})">+</button>
+          </div>
+        </div>`;
+      el.appendChild(div);
+      renderTags(i);
+    });
   });
 }
 
@@ -426,11 +512,15 @@ function toggleStop(i){
 }
 
 function updatePreviewName(i,v){
-  const el=document.querySelector(`.stop-card:nth-child(${i+1}) .stop-name-preview`);
+  const el=document.querySelector(`.stop-card[data-idx="${i}"] .stop-name-preview`);
   if(el)el.textContent=v||'(sin nombre)';
 }
 function updateTimePreviews(){
-  document.querySelectorAll('.stop-time-preview').forEach((el,i)=>{if(stops[i])el.textContent=stops[i].time});
+  document.querySelectorAll('.stop-card').forEach(card=>{
+    const i=parseInt(card.dataset.idx);
+    const el=card.querySelector('.stop-time-preview');
+    if(el&&stops[i])el.textContent=stops[i].time;
+  });
 }
 
 function updateLatLng(i){
@@ -503,9 +593,10 @@ function loadExisting(){
   document.getElementById('t-country').value=data.country||'';
   document.getElementById('t-emoji').value=data.emoji||'📍';
   document.getElementById('t-duration').value=data.duration||'';
-  document.getElementById('t-starttime').value=data.startTime||'09:00';
   updateTitle();
-  stops=(data.stops||[]).map((s,i)=>({...s,_id:s._id||genId()}));
+  days=(data.days&&data.days.length)?data.days.map(d=>({date:d.date||'',start:d.start||'09:00'})):[{date:'',start:data.startTime||'09:00'}];
+  renderDaysList();
+  stops=(data.stops||[]).map((s,i)=>({...s,_id:s._id||genId(),day:s.day||1}));
   renderStopsList();
   renderMarkers();
   updateRoute();
@@ -522,6 +613,7 @@ function buildTourData(){
     title:`${meta.emoji} ${meta.city} · Tour`,
     header:`${meta.emoji} ${meta.city.toUpperCase()} · ${meta.startTime}`,
     center,zoom:15,
+    days:days.map(d=>({date:d.date||'',start:d.start||'09:00'})),
     stops:stops.map((s,i)=>({...s,n:i+1}))
   };
 }
@@ -532,7 +624,8 @@ function save(){
   const data=buildTourData();
   const idx=LS.get('tours_index',{});
   idx[data.id]={id:data.id,city:data.city,country:data.country,emoji:data.emoji,
-    stops:stops.length,duration:data.duration,custom:true,updatedAt:Date.now()};
+    stops:stops.length,duration:data.duration,custom:true,updatedAt:Date.now(),
+    days:days.length,dateStart:days[0]?.date||'',dateEnd:days[days.length-1]?.date||''};
   LS.set('tours_index',idx);
   LS.set('tour_data_'+data.id,data);
   toast('✓ Tour guardado');

@@ -242,6 +242,7 @@ function cardHTML(t,custom){
       <div class="card-meta">
         <div class="card-stat">📍 <span>${t.stops}</span> paradas</div>
         <div class="card-duration card-stat">⏱ <span>${t.duration||'—'}</span></div>
+        ${t.days>1?`<div class="card-stat">📅 <span>${t.days}</span> días</div>`:''}
       </div>
       <div class="card-foot">
         <button class="card-btn card-btn-start" onclick="event.stopPropagation();openTour('${t.id}',${custom})">▶ Iniciar</button>
@@ -337,7 +338,8 @@ function importTour(data){
   const idx=getCustomTours();
   idx[data.id]={id:data.id,city:data.city||'Tour',country:data.country||'',
     emoji:data.emoji||'📍',stops:data.stops?.length||0,
-    duration:data.duration||'?h',custom:true,updatedAt:Date.now()};
+    duration:data.duration||'?h',custom:true,updatedAt:Date.now(),
+    days:data.days?.length||1,dateStart:data.days?.[0]?.date||'',dateEnd:data.days?.[data.days.length-1]?.date||''};
   LS.set('tours_index',idx);
   LS.set('tour_data_'+data.id,data);
   closeImport();
