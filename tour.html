@@ -415,7 +415,7 @@ async function drawTourRoute(){
   const straight=STOPS.map(s=>[s.lat,s.lng]);
   tLines.push(L.polyline(straight,{color:col,weight:2.5,opacity:.5,dashArray:'6 4'}).addTo(map));
   try{
-    const profile=tMode==='car'?'car':'foot';
+    const profile=tMode==='foot'?'foot':'car';
     const coords=STOPS.map(s=>`${s.lng},${s.lat}`).join(';');
     const r=await fetch(`https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=geojson&alternatives=false&continue_straight=false`,{signal:AbortSignal.timeout(10000)});
     const d=await r.json();
@@ -610,7 +610,7 @@ async function getTT(fLa,fLo,tLa,tLo,mode){
   if(ttCache.has(k))return ttCache.get(k);
   const dist=hav(fLa,fLo,tLa,tLo);
   try{
-    const p=mode==='car'?'car':'foot';
+    const p=mode==='foot'?'foot':'car';
     const r=await fetch(`https://router.project-osrm.org/route/v1/${p}/${fLo},${fLa};${tLo},${tLa}?overview=false&alternatives=false`,{signal:AbortSignal.timeout(6000)});
     const d=await r.json();
     if(d.code==='Ok'){const rd=d.routes[0].distance;let dur=d.routes[0].duration;if(mode==='transit')dur=rd<400?rd/SPEED.foot:rd/SPEED.transit+WAIT.transit;else if(mode==='car')dur+=WAIT.car;const res={dist:rd,dur:Math.round(dur)};ttCache.set(k,res);return res}
@@ -653,7 +653,7 @@ async function navTo(toLat,toLng,stopIdx){
   document.getElementById('nav-ins').textContent='Calculando…';document.getElementById('nav-dist').textContent='…';
   document.getElementById('nav-upcoming').innerHTML='';document.getElementById('navp').classList.add('open');
   try{
-    const p=tMode==='car'?'car':'foot';
+    const p=tMode==='foot'?'foot':'car';
     const url=`https://router.project-osrm.org/route/v1/${p}/${myLng},${myLat};${toLng},${toLat}?steps=true&overview=full&geometries=geojson&alternatives=false&continue_straight=false`;
     const res=await fetch(url,{signal:AbortSignal.timeout(9000)});
     if(!res.ok)throw new Error('HTTP '+res.status);
