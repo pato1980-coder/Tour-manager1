@@ -215,8 +215,9 @@ const DCOL=['#5bb8f5','#f5a623','#5edd8a','#f55b8a','#b07ef5','#5bf5d0','#f5d65b
 let map=null;
 let placingStopIdx=null;
 let editingStop=null;
+let movableStopIdx=null;
 const stopMarkers=[];
-let routeLine=null;
+let routeLines=[];
 
 function getTourMeta(){
   return{
@@ -244,7 +245,10 @@ function fmtDateShort(iso){
 }
 function renderDaysList(){
   const el=document.getElementById('days-list');
-  el.innerHTML=days.map((d,i)=>`
+  el.innerHTML=days.map((d,i)=>{
+    const sameAsFirst=i>0&&!!d.sameAsFirst;
+    const effOrigin=sameAsFirst?days[0].origin:d.origin;
+    return `
     <div class="day-card">
       <div class="day-row">
         <div class="field" style="flex:1.4">
@@ -258,19 +262,33 @@ function renderDaysList(){
         ${days.length>1?`<button class="stop-act" title="Eliminar día" onclick="removeDay(${i})">🗑</button>`:''}
       </div>
       <div class="field" style="margin-top:4px">
-        <label>🏨 Punto de partida del día (opcional)</label>
-        <div class="geo-search">
+        <label>🏨 ¿Cuál es el punto de partida del Día ${i+1}?</label>
+        ${i>0?`<label style="display:flex;align-items:center;gap:6px;margin:2px 0 8px;cursor:pointer;font-family:var(--mo);font-size:10px;color:rgba(255,255,255,.6);text-transform:none;letter-spacing:0">
+          <input type="checkbox" style="width:auto" ${sameAsFirst?'checked':''} onchange="setDaySameAsFirst(${i},this.checked)">
+          Usar el mismo punto de partida que el Día 1
+        </label>`:''}
+        ${!sameAsFirst?`<div class="geo-search">
           <input type="text" id="d${i}_geo" placeholder="🔍 Buscar hotel, dirección o lugar de salida" oninput="scheduleDayOriginSearch(${i})">
           <div class="geo-results" id="dayorigresults_${i}"></div>
-        </div>
-        ${d.origin?`<div class="stop-map-hint">🏨 ${esc(d.origin.address)} <span style="cursor:pointer;color:var(--r)" onclick="clearDayOrigin(${i})">✕ quitar</span></div>`:''}
+        </div>`:''}
+        ${effOrigin?`<div class="stop-map-hint">🏨 ${esc(effOrigin.address)} ${sameAsFirst?'<span style="opacity:.5">(Día 1)</span>':`<span style="cursor:pointer;color:var(--r)" onclick="clearDayOrigin(${i})">✕ quitar</span>`}</div>`:(sameAsFirst?`<div class="day-empty">El Día 1 aún no tiene punto de partida definido</div>`:'')}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 function setDayDate(i,v){days[i].date=v;renderStopsList()}
 function setDayStart(i,v){days[i].start=v||'09:00';recalcTimes();renderStopsList()}
+function setDaySameAsFirst(i,checked){
+  days[i].sameAsFirst=checked;
+  days[i].origin=checked?(days[0].origin?{...days[0].origin}:null):days[i].origin;
+  renderDaysList();
+}
+function propagateOriginToLinkedDays(){
+  days.forEach((d,i)=>{if(i>0&&d.sameAsFirst)d.origin=days[0].origin?{...days[0].origin}:null});
+}
 function addDay(){
-  days.push({date:'',start:'09:00',origin:null});
+  const sameAsFirst=true;
+  days.push({date:'',start:'09:00',origin:days[0].origin?{...days[0].origin}:null,sameAsFirst});
   renderDaysList();
   toast('✓ Día '+days.length+' añadido');
 }
@@ -281,6 +299,7 @@ function removeDay(i){
   stops=stops.filter(s=>s.day!==dayNum);
   stops.forEach(s=>{if(s.day>dayNum)s.day--});
   days.splice(i,1);
+  propagateOriginToLinkedDays();
   recalcTimes();renderDaysList();renderStopsList();renderMarkers();updateRoute();
   toast('🗑 Día eliminado');
 }
@@ -326,6 +345,12 @@ function stopPlacing(){
   document.getElementById('map-hint').classList.remove('on');
   map.getContainer().style.cursor='';
 }
+function toggleMoveStop(i){
+  movableStopIdx=movableStopIdx===i?null:i;
+  renderMarkers();
+  renderStopsList();
+  if(movableStopIdx===i)toast('🔓 Arrastra el marcador para moverlo');
+}
 
 function genId(){return 's'+Date.now()+Math.random().toString(36).slice(2,6)}
 function defaultStop(dayNum){
@@ -352,6 +377,7 @@ function addStop(dayNum){
 
 function removeStop(idx){
   stops.splice(idx,1);
+  movableStopIdx=null;
   recalcTimes();
   renderStopsList();
   renderMarkers();
@@ -458,6 +484,9 @@ function renderStopsList(){
           <button class="drop-pin-btn${placingStopIdx===i?' waiting':''}" onclick="startPlacing(${i})">
             ${placingStopIdx===i?'⏳ Haz clic en el mapa…':'📍 Colocar en el mapa'}
           </button>
+          ${hasCoords?`<button class="drop-pin-btn${movableStopIdx===i?' waiting':''}" onclick="toggleMoveStop(${i})">
+            ${movableStopIdx===i?'🔓 Arrastra el marcador en el mapa…':'🔓 Mover marcador en el mapa'}
+          </button>`:''}
           <div class="field" style="margin-top:10px">
             <label>Nombre</label>
             <input type="text" id="s${i}_name" value="${esc(s.name)}" oninput="stops[${i}].name=this.value;updatePreviewName(${i},this.value)">
@@ -610,10 +639,12 @@ function pickDayOriginResult(i,gi){
   const r=dayOrigResultsCache[i]?.[gi];
   if(!r)return;
   days[i].origin={lat:parseFloat(parseFloat(r.lat).toFixed(6)),lng:parseFloat(parseFloat(r.lon).toFixed(6)),address:r.display_name};
+  if(i===0)propagateOriginToLinkedDays();
   renderDaysList();
 }
 function clearDayOrigin(i){
   days[i].origin=null;
+  if(i===0)propagateOriginToLinkedDays();
   renderDaysList();
 }
 
@@ -696,10 +727,10 @@ function renderMarkers(){
       icon:L.divIcon({className:'',
         html:`<div style="width:26px;height:26px;border-radius:50%;background:${localPos===1?'#5edd8a':dcol};color:#0a0c12;font-family:monospace;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,.3);box-shadow:0 2px 8px rgba(0,0,0,.7)">${localPos}</div>`,
         iconSize:[26,26],iconAnchor:[13,13]}),
-      draggable:true,zIndexOffset:200
+      draggable:i===movableStopIdx,zIndexOffset:200
     }).addTo(map);
     mk.on('click',()=>setActiveStop(i));
-    mk.on('dragend',e=>{const{lat,lng}=e.target.getLatLng();stops[i].lat=parseFloat(lat.toFixed(6));stops[i].lng=parseFloat(lng.toFixed(6));stops[i].address='';updateRoute();const latEl=document.getElementById('s'+i+'_lat');const lngEl=document.getElementById('s'+i+'_lng');if(latEl)latEl.value=stops[i].lat;if(lngEl)lngEl.value=stops[i].lng;const hint=document.querySelector('#sbody_'+i+' .stop-map-hint');if(hint)hint.textContent=`📍 ${stops[i].lat.toFixed(4)}, ${stops[i].lng.toFixed(4)}`;reverseGeocode(i)});
+    mk.on('dragend',e=>{const{lat,lng}=e.target.getLatLng();stops[i].lat=parseFloat(lat.toFixed(6));stops[i].lng=parseFloat(lng.toFixed(6));stops[i].address='';updateRoute();const latEl=document.getElementById('s'+i+'_lat');const lngEl=document.getElementById('s'+i+'_lng');if(latEl)latEl.value=stops[i].lat;if(lngEl)lngEl.value=stops[i].lng;const hint=document.querySelector('#sbody_'+i+' .stop-map-hint');if(hint)hint.textContent=`📍 ${stops[i].lat.toFixed(4)}, ${stops[i].lng.toFixed(4)}`;reverseGeocode(i);movableStopIdx=null;e.target.dragging.disable();renderStopsList()});
     stopMarkers.push(mk);
   });
   const placed=stops.filter(s=>s.lat!==null&&s.lng!==null);
@@ -707,19 +738,27 @@ function renderMarkers(){
 }
 
 async function updateRoute(){
-  if(routeLine){map.removeLayer(routeLine);routeLine=null}
-  const placed=stops.filter(s=>s.lat!==null&&s.lng!==null);
+  routeLines.forEach(l=>map.removeLayer(l));routeLines=[];
+  const dayNums=[...new Set(stops.map(s=>s.day||1))].sort((a,b)=>a-b);
+  const multiDay=dayNums.length>1;
+  await Promise.all(dayNums.map(dn=>drawDayRoute(dn,multiDay)));
+}
+async function drawDayRoute(dn,multiDay){
+  const placed=stops.filter(s=>s.day===dn&&s.lat!==null&&s.lng!==null);
   if(placed.length<2)return;
+  const color=multiDay?DCOL[(dn-1)%DCOL.length]:'#5bb8f5';
   const lls=placed.map(s=>[s.lat,s.lng]);
-  routeLine=L.polyline(lls,{color:'#5bb8f5',weight:2.5,opacity:.6,dashArray:'6 4'}).addTo(map);
+  const dashed=L.polyline(lls,{color,weight:2.5,opacity:.6,dashArray:'6 4'}).addTo(map);
+  routeLines.push(dashed);
   try{
     const coords=placed.map(s=>`${s.lng},${s.lat}`).join(';');
     const r=await fetch(`https://router.project-osrm.org/route/v1/foot/${coords}?overview=full&geometries=geojson&alternatives=false&continue_straight=false`,{signal:AbortSignal.timeout(8000)});
     const d=await r.json();
     if(d.code==='Ok'&&d.routes?.length){
-      if(routeLine)map.removeLayer(routeLine);
+      map.removeLayer(dashed);
+      routeLines=routeLines.filter(l=>l!==dashed);
       const real=d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
-      routeLine=L.polyline(real,{color:'#5bb8f5',weight:3,opacity:.85}).addTo(map);
+      routeLines.push(L.polyline(real,{color,weight:3,opacity:.85}).addTo(map));
     }
   }catch(e){}
 }
@@ -732,7 +771,7 @@ function loadExisting(){
   document.getElementById('t-emoji').value=data.emoji||'📍';
   document.getElementById('t-duration').value=data.duration||'';
   updateTitle();
-  days=(data.days&&data.days.length)?data.days.map(d=>({date:d.date||'',start:d.start||'09:00',origin:d.origin||null})):[{date:'',start:data.startTime||'09:00',origin:null}];
+  days=(data.days&&data.days.length)?data.days.map(d=>({date:d.date||'',start:d.start||'09:00',origin:d.origin||null,sameAsFirst:!!d.sameAsFirst})):[{date:'',start:data.startTime||'09:00',origin:null}];
   renderDaysList();
   stops=(data.stops||[]).map((s,i)=>({...s,_id:s._id||genId(),day:s.day||1}));
   renderStopsList();
@@ -750,7 +789,7 @@ function buildTourData(){
     title:`${meta.emoji} ${meta.city} · Tour`,
     header:`${meta.emoji} ${meta.city.toUpperCase()} · ${meta.startTime}`,
     center,zoom:15,
-    days:days.map(d=>({date:d.date||'',start:d.start||'09:00',origin:d.origin||null})),
+    days:days.map(d=>({date:d.date||'',start:d.start||'09:00',origin:d.origin||null,sameAsFirst:!!d.sameAsFirst})),
     stops:stops.map((s,i)=>({...s,n:i+1}))
   };
 }
