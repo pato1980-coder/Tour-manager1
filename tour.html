@@ -286,7 +286,7 @@ const IS_CUSTOM=params.get('custom')==='1';
 
 let ALL_STOPS=[],STOPS=[],TOUR={},DAYS=[],curDay=1;
 const seen=new Set();
-let actIdx=null,tMode='foot',map=null,satMode=true;
+let actIdx=null,tMode='foot',tModeAuto=true,map=null,satMode=true;
 let myLat=null,myLng=null,myMk=null,myAcc=null,gpsOn=false;
 let cH=null,cRaw=[],cTs=0,cStale=null,wId=null;
 const mks=[];
@@ -454,6 +454,12 @@ async function updateRouteSummary(){
   }
   const fastest=Object.entries(totals).sort((a,b)=>a[1]-b[1])[0][0];
   document.querySelectorAll('.rs-chip').forEach(c=>c.classList.toggle('fastest',c.dataset.mode===fastest));
+  if(tModeAuto&&fastest!==tMode){
+    tMode=fastest;
+    ['foot','transit','car'].forEach(k=>document.getElementById('nm-'+k)?.classList.toggle('on',k===tMode));
+    document.querySelectorAll('.rs-chip').forEach(c=>c.classList.toggle('on',c.dataset.mode===tMode));
+    drawTourRoute();
+  }
 }
 
 function mkCls(s,i){
@@ -613,7 +619,7 @@ async function getTT(fLa,fLo,tLa,tLo,mode){
 }
 
 function setMode(m){
-  tMode=m;
+  tMode=m;tModeAuto=false;
   ['foot','transit','car'].forEach(k=>document.getElementById('nm-'+k)?.classList.toggle('on',k===m));
   document.querySelectorAll('.rs-chip').forEach(c=>c.classList.toggle('on',c.dataset.mode===m));
   drawTourRoute();
