@@ -111,6 +111,12 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 .ritem-info{flex:1;min-width:0}
 .ritem-name{font-size:13px;font-weight:600;color:#fff}
 .ritem-time{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.35);margin-top:2px}
+.rleg{display:flex;align-items:center;gap:8px;padding:4px 18px 4px 56px;background:rgba(255,255,255,.015)}
+.rleg-lbl{font-family:var(--mo);font-size:8px;color:rgba(255,255,255,.25);letter-spacing:.06em;text-transform:uppercase}
+.rleg-modes{display:flex;gap:4px;margin-left:auto}
+.rleg-btn{width:24px;height:24px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.5);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s}
+.rleg-btn.on{background:rgba(91,184,245,.18);border-color:var(--b);color:#fff}
+.rleg-btn.auto{font-size:10px}
 #reop-apply{margin:12px 18px calc(env(safe-area-inset-bottom,0px)+12px);
   padding:14px;border-radius:10px;border:none;background:var(--b);color:#0a0c12;
   font-family:var(--mo);font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;letter-spacing:.06em}
@@ -181,6 +187,7 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 .mk.ac{background:#fff;color:#0a0c12;border-color:var(--b);box-shadow:0 0 0 3px rgba(91,184,245,.4)}
 .mk.fi{background:var(--g);color:#0a0c12}
 .mk.la{background:#8a6a3a;color:#fff}
+.mk.org{background:#fff;color:#0a0c12;border-radius:8px;font-size:14px;cursor:default}
 .leaflet-popup{display:none!important}
 
 /* Toast */
@@ -349,7 +356,7 @@ function showError(msg){
 
 function initTour(data){
   TOUR=data;
-  DAYS=(data.days&&data.days.length)?data.days.map(d=>({date:d.date||'',start:d.start||'09:00'})):[{date:data.date||'',start:data.startTime||'09:00'}];
+  DAYS=(data.days&&data.days.length)?data.days.map(d=>({date:d.date||'',start:d.start||'09:00',origin:d.origin||null})):[{date:data.date||'',start:data.startTime||'09:00',origin:null}];
   ALL_STOPS=data.stops.map(s=>({...s,day:s.day||1}));
   curDay=1;
   rebuildDayStops();
@@ -370,6 +377,30 @@ function fmtDateShort(iso){
 function rebuildDayStops(){
   STOPS=ALL_STOPS.filter(s=>s.day===curDay);
   STOPS.forEach((s,i)=>s.n=i+1);
+  legAutoCache={};
+}
+function dayOrigin(){
+  return DAYS[curDay-1]?.origin||null;
+}
+function boundsPoints(){
+  const pts=STOPS.map(s=>[s.lat,s.lng]);
+  const o=dayOrigin();
+  if(o)pts.push([o.lat,o.lng]);
+  return pts;
+}
+let legAutoCache={};
+function legsForDay(){
+  const o=dayOrigin();
+  const legs=[];
+  if(o)legs.push({from:o,to:STOPS[0],idx:0});
+  for(let i=1;i<STOPS.length;i++)legs.push({from:STOPS[i-1],to:STOPS[i],idx:i});
+  return legs;
+}
+function effectiveLegMode(idx){
+  const s=STOPS[idx];
+  if(s.legMode)return s.legMode;
+  if(tModeAuto)return legAutoCache[idx]||'foot';
+  return tMode;
 }
 function updateTopTitle(){
   const d=DAYS[curDay-1];
@@ -396,7 +427,7 @@ function switchDay(n){
   applyDayColor();
   rebuildDayStops();buildDayBar();updateTopTitle();
   buildMarkers();buildBar();drawTourRoute();updateRouteSummary();
-  if(STOPS.length)map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]});
+  if(STOPS.length)map.fitBounds(L.latLngBounds(boundsPoints()),{padding:[60,60]});
 }
 
 const satL=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:19});
@@ -412,7 +443,7 @@ function initMap(){
   else{satL.addTo(map);lblL.addTo(map)}
   map.on('click',closeSh);
   buildMarkers();drawTourRoute();updateRouteSummary();buildBar();
-  map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]});
+  map.fitBounds(L.latLngBounds(boundsPoints()),{padding:[60,60]});
 }
 
 function toggleSat(){
@@ -426,22 +457,28 @@ async function drawTourRoute(){
   const myGen=++rGen;
   tLines.forEach(l=>map.removeLayer(l));tLines=[];
   if(STOPS.length<2)return;
-  const col=MCOL[tMode];
-  const straight=STOPS.map(s=>[s.lat,s.lng]);
-  tLines.push(L.polyline(straight,{color:col,weight:2.5,opacity:.5,dashArray:'6 4'}).addTo(map));
-  try{
-    const profile=tMode==='foot'?'foot':'car';
-    const coords=STOPS.map(s=>`${s.lng},${s.lat}`).join(';');
-    const r=await fetch(`https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=geojson&alternatives=false&continue_straight=false`,{signal:AbortSignal.timeout(10000)});
-    const d=await r.json();
-    if(myGen!==rGen)return;
-    if(d.code==='Ok'&&d.routes?.length){
-      tLines.forEach(l=>map.removeLayer(l));tLines=[];
-      const lls=d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
-      tLines.push(L.polyline(lls,{color:'#000',weight:6,opacity:.25}).addTo(map));
-      tLines.push(L.polyline(lls,{color:col,weight:3.5,opacity:.9}).addTo(map));
-    }
-  }catch(e){}
+  const legs=legsForDay();
+  const dashed=legs.map(leg=>{
+    const m=effectiveLegMode(leg.idx);
+    const l=L.polyline([[leg.from.lat,leg.from.lng],[leg.to.lat,leg.to.lng]],{color:MCOL[m],weight:2.5,opacity:.5,dashArray:'6 4'}).addTo(map);
+    tLines.push(l);
+    return l;
+  });
+  await Promise.all(legs.map(async(leg,li)=>{
+    const m=effectiveLegMode(leg.idx);
+    const profile=m==='foot'?'foot':'car';
+    try{
+      const r=await fetch(`https://router.project-osrm.org/route/v1/${profile}/${leg.from.lng},${leg.from.lat};${leg.to.lng},${leg.to.lat}?overview=full&geometries=geojson&alternatives=false&continue_straight=false`,{signal:AbortSignal.timeout(10000)});
+      const d=await r.json();
+      if(myGen!==rGen)return;
+      if(d.code==='Ok'&&d.routes?.length){
+        map.removeLayer(dashed[li]);
+        const lls=d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+        tLines.push(L.polyline(lls,{color:'#000',weight:6,opacity:.25}).addTo(map));
+        tLines.push(L.polyline(lls,{color:MCOL[m],weight:3.5,opacity:.9}).addTo(map));
+      }
+    }catch(e){}
+  }));
 }
 
 let rsGen=0;
@@ -454,27 +491,26 @@ async function updateRouteSummary(){
   el.innerHTML=['foot','transit','car'].map(m=>
     `<div class="rs-chip${m===tMode?' on':''}" data-mode="${m}" onclick="setMode('${m}')">${MICO[m]} <span class="rs-t" id="rs-${m}">…</span></div>`
   ).join('');
-  const totals={};
-  for(const m of['foot','transit','car']){
-    let total=0;
-    for(let i=0;i<STOPS.length-1;i++){
-      const a=STOPS[i],b=STOPS[i+1];
-      const tt=await getTT(a.lat,a.lng,b.lat,b.lng,m);
-      total+=tt.dur;
+  const legs=legsForDay();
+  const totals={foot:0,transit:0,car:0};
+  let legsChanged=false;
+  for(const leg of legs){
+    let bestM=null,bestDur=Infinity;
+    for(const m of['foot','transit','car']){
+      const tt=await getTT(leg.from.lat,leg.from.lng,leg.to.lat,leg.to.lng,m);
+      if(myGen!==rsGen)return;
+      totals[m]+=tt.dur;
+      if(tt.dur<bestDur){bestDur=tt.dur;bestM=m}
     }
-    if(myGen!==rsGen)return;
-    totals[m]=total;
+    if(!STOPS[leg.idx].legMode&&legAutoCache[leg.idx]!==bestM){legAutoCache[leg.idx]=bestM;legsChanged=true}
+  }
+  for(const m of['foot','transit','car']){
     const t=document.getElementById('rs-'+m);
-    if(t)t.textContent=fmtT(total);
+    if(t)t.textContent=fmtT(totals[m]);
   }
   const fastest=Object.entries(totals).sort((a,b)=>a[1]-b[1])[0][0];
   document.querySelectorAll('.rs-chip').forEach(c=>c.classList.toggle('fastest',c.dataset.mode===fastest));
-  if(tModeAuto&&fastest!==tMode){
-    tMode=fastest;
-    ['foot','transit','car'].forEach(k=>document.getElementById('nm-'+k)?.classList.toggle('on',k===tMode));
-    document.querySelectorAll('.rs-chip').forEach(c=>c.classList.toggle('on',c.dataset.mode===tMode));
-    drawTourRoute();
-  }
+  if(legsChanged)drawTourRoute();
 }
 
 function mkCls(s,i){
@@ -484,14 +520,21 @@ function mkCls(s,i){
   if(i===STOPS.length-1)return 'mk la';
   return 'mk u';
 }
+let originMk=null;
 function buildMarkers(){
   mks.forEach(m=>map.removeLayer(m));mks.length=0;
+  if(originMk){map.removeLayer(originMk);originMk=null}
   STOPS.forEach((s,i)=>{
     const icon=L.divIcon({className:'',html:`<div class="${mkCls(s,i)}">${s.n}</div>`,iconSize:[26,26],iconAnchor:[13,13]});
     const mk=L.marker([s.lat,s.lng],{icon,zIndexOffset:200}).addTo(map);
     mk.on('click',()=>openSh(i));
     mks.push(mk);
   });
+  const o=dayOrigin();
+  if(o){
+    const icon=L.divIcon({className:'',html:`<div class="mk org">🏨</div>`,iconSize:[26,26],iconAnchor:[13,13]});
+    originMk=L.marker([o.lat,o.lng],{icon,zIndexOffset:150}).addTo(map);
+  }
 }
 
 function buildBar(){
@@ -581,7 +624,9 @@ document.getElementById('reop').addEventListener('click',e=>e.stopPropagation())
 
 function renderReorderList(){
   const el=document.getElementById('reop-list');el.innerHTML='';
+  const o=dayOrigin();
   STOPS.forEach((s,i)=>{
+    if(i>0||o)el.appendChild(buildLegModeRow(i));
     const row=document.createElement('div');row.className='ritem';row.dataset.idx=i;
     row.innerHTML=`
       <div class="ritem-handle" data-idx="${i}">☰</div>
@@ -594,6 +639,22 @@ function renderReorderList(){
     row.querySelector('.ritem-handle').addEventListener('touchstart',e=>startTouchDrag(e,i,row),{passive:true});
     el.appendChild(row);
   });
+}
+
+function buildLegModeRow(idx){
+  const row=document.createElement('div');row.className='rleg';
+  const cur=STOPS[idx].legMode;
+  row.innerHTML=`<div class="rleg-lbl">Tramo</div><div class="rleg-modes">
+    ${['foot','transit','car'].map(m=>`<button class="rleg-btn${cur===m?' on':''}" title="${MICO[m]}" onclick="setLegMode(${idx},'${m}')">${MICO[m]}</button>`).join('')}
+    <button class="rleg-btn auto${!cur?' on':''}" title="Automático" onclick="setLegMode(${idx},null)">🔄</button>
+  </div>`;
+  return row;
+}
+function setLegMode(idx,m){
+  STOPS[idx].legMode=m;
+  renderReorderList();
+  drawTourRoute();
+  updateRouteSummary();
 }
 
 function startDrag(e,i,row){
@@ -620,7 +681,16 @@ function sortStopsByTime(){
 }
 function sortStopsByProximity(){
   if(STOPS.length<2)return;
-  const ordered=[STOPS[0]],remaining=STOPS.slice(1);
+  const o=dayOrigin();
+  let ordered,remaining;
+  if(o){
+    remaining=STOPS.slice();
+    let bi=0,bd=Infinity;
+    remaining.forEach((s,i)=>{const d=hav(o.lat,o.lng,s.lat,s.lng);if(d<bd){bd=d;bi=i}});
+    ordered=[remaining.splice(bi,1)[0]];
+  }else{
+    ordered=[STOPS[0]];remaining=STOPS.slice(1);
+  }
   while(remaining.length){
     const last=ordered[ordered.length-1];
     let bi=0,bd=Infinity;
@@ -648,7 +718,7 @@ function applyReorder(){
     const data=LS.get('tour_data_'+TOUR_ID);
     if(data){data.stops=ALL_STOPS.map(({n,...rest})=>rest);data.days=DAYS;LS.set('tour_data_'+TOUR_ID,data);}
   }
-  buildMarkers();buildBar();drawTourRoute();updateRouteSummary();toast('✓ Orden actualizado · Recalculando ruta…');map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]})
+  buildMarkers();buildBar();drawTourRoute();updateRouteSummary();toast('✓ Orden actualizado · Recalculando ruta…');map.fitBounds(L.latLngBounds(boundsPoints()),{padding:[60,60]})
 }
 
 async function getTT(fLa,fLo,tLa,tLo,mode){
