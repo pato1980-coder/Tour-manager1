@@ -12,7 +12,8 @@
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--b:#5bb8f5;--g:#5edd8a;--r:#e06060;--p:#b07ef5;--seen:#3a8a5c;--dc:#5bb8f5;--mo:'Courier New',monospace}
 html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overflow:hidden;color:#e8e6df}
-#map{position:fixed;inset:0;z-index:0}
+#map{position:fixed;inset:0;z-index:0;transition:transform .2s linear}
+#map.rot{top:50%;left:50%;right:auto;bottom:auto;width:160vmax;height:160vmax;margin:-80vmax 0 0 -80vmax}
 
 /* TOP */
 #top{position:fixed;top:env(safe-area-inset-top,0);left:0;right:0;z-index:100;
@@ -216,9 +217,11 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 <div id="top">
   <span id="top-title">Tour</span>
   <button class="fab" onclick="location.href='index.html'" title="Volver">🏠</button>
+  <button class="fab" id="fab-export" onclick="exportCurrentTour()" title="Exportar tour">⬇</button>
   <button class="fab on" id="fab-sat" onclick="toggleSat()">🛰</button>
   <button class="fab" id="fab-gps" onclick="toggleGPS()">📍</button>
   <button class="fab" id="fab-ctr" style="display:none" onclick="centerMe()">⊙</button>
+  <button class="fab" id="fab-compass" style="display:none" onclick="toggleCourseUp()" title="Orientar mapa según rumbo">🧭</button>
   <button class="fab" id="fab-reorder" onclick="openReorder()" style="background:rgba(176,126,245,.18);color:var(--p)">⇅</button>
 </div>
 
@@ -305,6 +308,7 @@ const seen=new Set();
 let actIdx=null,tMode='foot',tModeAuto=true,map=null,satMode=true;
 let myLat=null,myLng=null,myMk=null,myAcc=null,gpsOn=false;
 let cH=null,cRaw=[],cTs=0,cStale=null,wId=null;
+let courseUp=false;
 const mks=[];
 let tLines=[],nLines=[];
 let nSteps=[],nIdx=0,nDestLat=null,nDestLng=null,nDestIdx=null,pendingNav=false,pendingIdx=null;
@@ -340,6 +344,14 @@ async function loadTour(){
       initTour(data);
     }
   }catch(e){showError('Error: '+e.message)}
+}
+
+function exportCurrentTour(){
+  const data=IS_CUSTOM?LS.get('tour_data_'+TOUR_ID):TOUR;
+  if(!data){toast('⚠ No se pudo exportar');return}
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${TOUR_ID}.json`;a.click();
+  toast('✓ Tour exportado');
 }
 
 function showError(msg){
@@ -831,6 +843,36 @@ function closeNav(){document.getElementById('navp').classList.remove('open');nLi
 
 function buildGI(){return L.divIcon({className:'',html:`<div class="gw"><div class="gr"></div><div class="gb"></div><div class="gc hid" id="gps-cone"></div></div>`,iconSize:[44,44],iconAnchor:[22,22]})}
 function updCone(h){const c=document.getElementById('gps-cone');if(!c)return;c.classList.remove('hid');c.style.transform=`rotate(${h}deg)`}
+
+function setMapRotation(deg){
+  document.getElementById('map').style.transform=`rotate(${-deg}deg)`;
+  mks.forEach(mk=>{const inner=mk.getElement()?.firstElementChild;if(inner)inner.style.transform=`rotate(${deg}deg)`});
+  if(originMk){const inner=originMk.getElement()?.firstElementChild;if(inner)inner.style.transform=`rotate(${deg}deg)`}
+}
+function resetMapRotation(){
+  document.getElementById('map').style.transform='';
+  mks.forEach(mk=>{const inner=mk.getElement()?.firstElementChild;if(inner)inner.style.transform=''});
+  if(originMk){const inner=originMk.getElement()?.firstElementChild;if(inner)inner.style.transform=''}
+}
+function toggleCourseUp(){
+  if(!gpsOn){toast('Activa el GPS');return}
+  courseUp=!courseUp;
+  document.getElementById('fab-compass').classList.toggle('on',courseUp);
+  const mapEl=document.getElementById('map');
+  if(courseUp){
+    mapEl.classList.add('rot');
+    map.dragging.disable();
+    map.invalidateSize();
+    if(cH!==null)setMapRotation(cH);
+    toast('🧭 Mapa orientado según tu rumbo');
+  }else{
+    resetMapRotation();
+    mapEl.classList.remove('rot');
+    map.dragging.enable();
+    map.invalidateSize();
+    toast('🧭 Mapa orientado al norte');
+  }
+}
 function onOrient(e){
   const now=Date.now();let raw=null;
   if(typeof e.webkitCompassHeading==='number'&&(typeof e.webkitCompassAccuracy!=='number'||e.webkitCompassAccuracy<50))raw=e.webkitCompassHeading;
@@ -843,13 +885,14 @@ function onOrient(e){
   const med=((Math.atan2(sy/cRaw.length,sx/cRaw.length)*180/Math.PI)+360)%360;
   if(cH===null){cH=med}else{let d=med-cH;if(d>180)d-=360;if(d<-180)d+=360;cH=(cH+(d>30?.5:d>10?.28:.12)*d+360)%360}
   updCone(cH);cTs=now;
+  if(courseUp)setMapRotation(cH);
   if(cStale)clearTimeout(cStale);
   cStale=setTimeout(()=>{const c=document.getElementById('gps-cone');if(c)c.classList.add('hid');cH=null;cRaw=[]},3000);
 }
 function onPos(pos){
   const{latitude:la,longitude:lo,accuracy:ac}=pos.coords;myLat=la;myLng=lo;
   if(!myMk){map.setView([la,lo],16,{animate:true});myMk=L.marker([la,lo],{icon:buildGI(),zIndexOffset:5000}).addTo(map)}
-  else{myMk.setLatLng([la,lo]);myMk.setIcon(buildGI())}
+  else{myMk.setLatLng([la,lo]);myMk.setIcon(buildGI());if(courseUp)map.setView([la,lo],map.getZoom(),{animate:true})}
   if(cH!==null)Promise.resolve().then(()=>updCone(cH));
   if(myAcc)map.removeLayer(myAcc);
   myAcc=L.circle([la,lo],{radius:ac,color:'#5bb8f5',fillColor:'#5bb8f5',fillOpacity:.06,weight:1}).addTo(map);
@@ -858,7 +901,8 @@ function onPos(pos){
   if(pendingNav){pendingNav=false;navToIdx(pendingIdx)}
 }
 function onErr(e){
-  gpsOn=false;document.getElementById('fab-gps').textContent='📍';document.getElementById('fab-gps').classList.remove('gon');document.getElementById('fab-ctr').style.display='none';
+  gpsOn=false;document.getElementById('fab-gps').textContent='📍';document.getElementById('fab-gps').classList.remove('gon');document.getElementById('fab-ctr').style.display='none';document.getElementById('fab-compass').style.display='none';
+  if(courseUp){courseUp=false;resetMapRotation();document.getElementById('map').classList.remove('rot');map.dragging.enable();document.getElementById('fab-compass').classList.remove('on')}
   const msgs={1:'GPS: Permiso denegado — actívalo en Ajustes',2:'GPS: Señal no disponible',3:'GPS: Tiempo agotado'};
   toast(msgs[e?.code]||'Error GPS desconocido');
   if(pendingNav){pendingNav=false;document.getElementById('nav-ins').textContent='No se pudo obtener tu ubicación';document.getElementById('nav-arr').textContent='⚠';document.getElementById('nav-street').textContent=msgs[e?.code]||'';document.getElementById('nav-dist').textContent='—'}
@@ -868,7 +912,7 @@ async function startGPS(){
   if(!navigator.geolocation){toast('GPS no disponible en este navegador');return}
   document.getElementById('fab-gps').textContent='⏳';
   navigator.geolocation.getCurrentPosition(async pos=>{
-    gpsOn=true;document.getElementById('fab-gps').classList.add('gon');document.getElementById('fab-gps').textContent='🔵';document.getElementById('fab-ctr').style.display='flex';
+    gpsOn=true;document.getElementById('fab-gps').classList.add('gon');document.getElementById('fab-gps').textContent='🔵';document.getElementById('fab-ctr').style.display='flex';document.getElementById('fab-compass').style.display='flex';
     try{if('wakeLock' in navigator)await navigator.wakeLock.request('screen')}catch(e){}
     onPos(pos);wId=navigator.geolocation.watchPosition(onPos,onErr,{enableHighAccuracy:true,maximumAge:1500,timeout:20000});
   },e=>{document.getElementById('fab-gps').textContent='📍';onErr(e)},{enableHighAccuracy:true,timeout:15000,maximumAge:0});
@@ -881,7 +925,8 @@ function stopGPS(){
   if(wId)navigator.geolocation.clearWatch(wId);if(cStale)clearTimeout(cStale);
   window.removeEventListener('deviceorientationabsolute',onOrient,true);window.removeEventListener('deviceorientation',onOrient,true);
   if(myMk){map.removeLayer(myMk);myMk=null}if(myAcc){map.removeLayer(myAcc);myAcc=null}
-  document.getElementById('fab-gps').classList.remove('gon');document.getElementById('fab-gps').textContent='📍';document.getElementById('fab-ctr').style.display='none';closeNav();
+  if(courseUp){courseUp=false;resetMapRotation();document.getElementById('map').classList.remove('rot');map.dragging.enable();document.getElementById('fab-compass').classList.remove('on')}
+  document.getElementById('fab-gps').classList.remove('gon');document.getElementById('fab-gps').textContent='📍';document.getElementById('fab-ctr').style.display='none';document.getElementById('fab-compass').style.display='none';closeNav();
 }
 function centerMe(){if(myLat)map.setView([myLat,myLng],17,{animate:true});else toast('Activa el GPS')}
 

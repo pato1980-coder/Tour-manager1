@@ -65,6 +65,7 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,12,18,.97);
 .card-btn:active{transform:scale(.95)}
 .card-btn-start{background:var(--b);color:#0a0c12}
 .card-btn-edit{background:rgba(176,126,245,.12);color:var(--p);border:1px solid rgba(176,126,245,.2)}
+.card-btn-export{background:rgba(94,221,138,.1);color:var(--g);border:1px solid rgba(94,221,138,.2);flex:0 0 auto;padding:9px 14px}
 .card-btn-del{background:rgba(224,96,96,.08);color:var(--r);border:1px solid rgba(224,96,96,.15);flex:0 0 auto;padding:9px 14px}
 .card-badge{font-family:var(--mo);font-size:8px;padding:2px 6px;border-radius:3px;background:rgba(94,221,138,.1);color:var(--g);border:1px solid rgba(94,221,138,.2);flex-shrink:0;align-self:flex-start}
 
@@ -242,6 +243,7 @@ function cardHTML(t,custom){
       <div class="card-foot">
         <button class="card-btn card-btn-start" onclick="event.stopPropagation();openTour('${t.id}',${custom})">▶ Iniciar</button>
         ${custom?`<button class="card-btn card-btn-edit" onclick="event.stopPropagation();editTour('${t.id}')">&#x270e; Editar</button>`:''}
+        <button class="card-btn card-btn-export" title="Exportar JSON" onclick="event.stopPropagation();exportTourCard('${t.id}',${custom})">⬇</button>
         <button class="card-btn card-btn-del" onclick="event.stopPropagation();confirmDelete('${t.id}','${t.city}',${custom})">🗑</button>
       </div>
     </div>
@@ -287,6 +289,19 @@ function openTour(id,custom){
   else location.href=`tour.html?id=${id}`;
 }
 function editTour(id){location.href=`editor.html?id=${id}`;}
+
+async function exportTourCard(id,custom){
+  let data=null;
+  if(custom){
+    data=LS.get('tour_data_'+id);
+  }else{
+    try{const r=await fetch('tours/'+id+'.json');data=await r.json()}catch{}
+  }
+  if(!data){toast('⚠ No se pudo exportar');return}
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${id}.json`;a.click();
+  toast('✓ Tour exportado');
+}
 
 let pendingDelete=null;
 function confirmDelete(id,city,custom){
