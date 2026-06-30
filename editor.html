@@ -86,6 +86,14 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
 .drop-pin-btn:hover{background:rgba(91,184,245,.1)}
 .drop-pin-btn.waiting{border-style:solid;background:rgba(91,184,245,.12);animation:pulse .8s ease-in-out infinite alternate}
 @keyframes pulse{from{opacity:.7}to{opacity:1}}
+.geo-search{position:relative}
+.geo-results{position:absolute;top:100%;left:0;right:0;z-index:30;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:180px;overflow-y:auto;display:none;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.geo-results.on{display:block}
+.geo-result{padding:8px 10px;font-size:11px;line-height:1.3;color:rgba(255,255,255,.8);cursor:pointer;border-bottom:1px solid var(--border)}
+.geo-result:last-child{border-bottom:none}
+.geo-result:hover{background:rgba(91,184,245,.12)}
+.geo-result.disabled{cursor:default;color:rgba(255,255,255,.35)}
+.geo-result.disabled:hover{background:none}
 
 #map-wrap{flex:1;position:relative;overflow:hidden}
 #map{width:100%;height:100%}
@@ -285,11 +293,13 @@ function onMapClick(e){
   const{lat,lng}=e.latlng;
   stops[placingStopIdx].lat=parseFloat(lat.toFixed(6));
   stops[placingStopIdx].lng=parseFloat(lng.toFixed(6));
+  const placedIdx=placingStopIdx;
   stopPlacing();
   renderStopsList();
   renderMarkers();
   updateRoute();
-  setActiveStop(placingStopIdx);
+  setActiveStop(placedIdx);
+  reverseGeocode(placedIdx);
 }
 
 function startPlacing(idx){
@@ -310,7 +320,7 @@ function defaultStop(dayNum){
   const startTime=day?.start||'09:00';
   let[h,m]=startTime.split(':').map(Number);
   stops.filter(s=>s.day===dayNum).forEach(s=>{m+=s.stayMin+10;h+=Math.floor(m/60);m%=60});
-  return{_id:genId(),day:dayNum,name:'Parada',time:`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`,dur:'30 min · gratis',stayMin:30,desc:'',lat:null,lng:null,tags:[],wiki:''};
+  return{_id:genId(),day:dayNum,name:'Parada',time:`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`,dur:'30 min · gratis',stayMin:30,desc:'',lat:null,lng:null,address:'',tags:[],wiki:''};
 }
 
 function addStop(dayNum){
@@ -416,7 +426,7 @@ function renderStopsList(){
       div.innerHTML=`
         <div class="stop-head" onclick="toggleStop(${i})">
           <div class="stop-num${isFirst?' first':''}">${localPos+1}</div>
-          <div class="stop-name-preview">${s.name}</div>
+          <div class="stop-name-preview">${esc(s.name)}</div>
           <div class="stop-time-preview">${s.time}</div>
           <div class="stop-actions">
             ${!isFirst?`<button class="stop-act" title="Subir" onclick="event.stopPropagation();moveStop(${i},-1)">↑</button>`:''}
@@ -425,7 +435,11 @@ function renderStopsList(){
           </div>
         </div>
         <div class="stop-body${isOpen?' open':''}" id="sbody_${i}">
-          <div class="stop-map-hint">${hasCoords?`📍 ${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}`:'⚠ Sin ubicación en el mapa'}</div>
+          <div class="stop-map-hint">${hasCoords?(s.address?`📍 ${esc(s.address)}`:`📍 ${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}`):'⚠ Sin ubicación conocida'}</div>
+          <div class="geo-search">
+            <input type="text" id="s${i}_geo" placeholder="🔍 Buscar dirección o lugar (ej. Panteón de Roma)" oninput="scheduleGeoSearch(${i})">
+            <div class="geo-results" id="georesults_${i}"></div>
+          </div>
           <button class="drop-pin-btn${placingStopIdx===i?' waiting':''}" onclick="startPlacing(${i})">
             ${placingStopIdx===i?'⏳ Haz clic en el mapa…':'📍 Colocar en el mapa'}
           </button>
@@ -481,6 +495,69 @@ function renderStopsList(){
 
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
+let geoSearchTimers={};
+let geoReverseTimers={};
+let geoResultsCache={};
+
+function scheduleGeoSearch(i){
+  clearTimeout(geoSearchTimers[i]);
+  geoSearchTimers[i]=setTimeout(()=>geoSearch(i),500);
+}
+
+function geoSearch(i){
+  const q=document.getElementById('s'+i+'_geo')?.value.trim();
+  const box=document.getElementById('georesults_'+i);
+  if(!q){if(box){box.classList.remove('on');box.innerHTML=''}return}
+  if(box){box.innerHTML='<div class="geo-result disabled">Buscando…</div>';box.classList.add('on')}
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(q)}`)
+    .then(r=>r.json())
+    .then(results=>{
+      geoResultsCache[i]=results;
+      if(!box)return;
+      if(!results.length){box.innerHTML='<div class="geo-result disabled">Sin resultados</div>';return}
+      box.innerHTML=results.map((r,gi)=>`<div class="geo-result" onclick="pickGeoResult(${i},${gi})">${esc(r.display_name)}</div>`).join('');
+    })
+    .catch(()=>{if(box)box.innerHTML='<div class="geo-result disabled">Error de búsqueda</div>'});
+}
+
+function pickGeoResult(i,gi){
+  const r=geoResultsCache[i]?.[gi];
+  if(!r)return;
+  stops[i].lat=parseFloat(parseFloat(r.lat).toFixed(6));
+  stops[i].lng=parseFloat(parseFloat(r.lon).toFixed(6));
+  stops[i].address=r.display_name;
+  if(!stops[i].name||stops[i].name==='Parada')stops[i].name=(r.display_name||'').split(',')[0];
+  const box=document.getElementById('georesults_'+i);
+  if(box){box.classList.remove('on');box.innerHTML=''}
+  const geoInput=document.getElementById('s'+i+'_geo');
+  if(geoInput)geoInput.value='';
+  renderStopsList();
+  renderMarkers();
+  updateRoute();
+  setActiveStop(i);
+}
+
+function scheduleReverseGeocode(i){
+  clearTimeout(geoReverseTimers[i]);
+  geoReverseTimers[i]=setTimeout(()=>reverseGeocode(i),900);
+}
+
+function reverseGeocode(i){
+  const s=stops[i];
+  if(!s||s.lat===null||s.lng===null)return;
+  fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${s.lat}&lon=${s.lng}`)
+    .then(r=>r.json())
+    .then(data=>{
+      if(!stops[i]||stops[i].lat!==s.lat||stops[i].lng!==s.lng)return;
+      if(data&&data.display_name){
+        stops[i].address=data.display_name;
+        const hint=document.querySelector('#sbody_'+i+' .stop-map-hint');
+        if(hint)hint.textContent=`📍 ${data.display_name}`;
+      }
+    })
+    .catch(()=>{});
+}
+
 function toggleStop(i){
   if(editingStop===i){editingStop=null;renderStopsList()}
   else setActiveStop(i);
@@ -501,7 +578,13 @@ function updateTimePreviews(){
 function updateLatLng(i){
   const lat=parseFloat(document.getElementById('s'+i+'_lat')?.value);
   const lng=parseFloat(document.getElementById('s'+i+'_lng')?.value);
-  if(!isNaN(lat)&&!isNaN(lng)){stops[i].lat=lat;stops[i].lng=lng;renderMarkers();updateRoute();const hint=document.querySelector('#sbody_'+i+' .stop-map-hint');if(hint)hint.textContent=`📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}`}
+  if(!isNaN(lat)&&!isNaN(lng)){
+    stops[i].lat=lat;stops[i].lng=lng;stops[i].address='';
+    renderMarkers();updateRoute();
+    const hint=document.querySelector('#sbody_'+i+' .stop-map-hint');
+    if(hint)hint.textContent=`📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    scheduleReverseGeocode(i);
+  }
 }
 
 function renderTags(i){
@@ -533,7 +616,7 @@ function renderMarkers(){
       draggable:true,zIndexOffset:200
     }).addTo(map);
     mk.on('click',()=>setActiveStop(i));
-    mk.on('dragend',e=>{const{lat,lng}=e.target.getLatLng();stops[i].lat=parseFloat(lat.toFixed(6));stops[i].lng=parseFloat(lng.toFixed(6));updateRoute();const latEl=document.getElementById('s'+i+'_lat');const lngEl=document.getElementById('s'+i+'_lng');if(latEl)latEl.value=stops[i].lat;if(lngEl)lngEl.value=stops[i].lng;const hint=document.querySelector('#sbody_'+i+' .stop-map-hint');if(hint)hint.textContent=`📍 ${stops[i].lat.toFixed(4)}, ${stops[i].lng.toFixed(4)}`});
+    mk.on('dragend',e=>{const{lat,lng}=e.target.getLatLng();stops[i].lat=parseFloat(lat.toFixed(6));stops[i].lng=parseFloat(lng.toFixed(6));stops[i].address='';updateRoute();const latEl=document.getElementById('s'+i+'_lat');const lngEl=document.getElementById('s'+i+'_lng');if(latEl)latEl.value=stops[i].lat;if(lngEl)lngEl.value=stops[i].lng;const hint=document.querySelector('#sbody_'+i+' .stop-map-hint');if(hint)hint.textContent=`📍 ${stops[i].lat.toFixed(4)}, ${stops[i].lng.toFixed(4)}`;reverseGeocode(i)});
     stopMarkers.push(mk);
   });
   const placed=stops.filter(s=>s.lat!==null&&s.lng!==null);
