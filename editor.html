@@ -57,6 +57,8 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
 .day-row{display:flex;gap:8px;align-items:flex-end;margin-bottom:8px}
 .day-row .field{margin-bottom:0}
 .day-row .stop-act{margin-bottom:9px;font-size:14px}
+.day-card{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.day-card:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
 
 .stop-card{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;transition:border-color .15s}
 .stop-card.active{border-color:rgba(91,184,245,.4)}
@@ -208,7 +210,7 @@ const LS={
 };
 
 let stops=[];
-let days=[{date:'',start:'09:00'}];
+let days=[{date:'',start:'09:00',origin:null}];
 const DCOL=['#5bb8f5','#f5a623','#5edd8a','#f55b8a','#b07ef5','#5bf5d0','#f5d65b','#7ea8f5'];
 let map=null;
 let placingStopIdx=null;
@@ -243,22 +245,32 @@ function fmtDateShort(iso){
 function renderDaysList(){
   const el=document.getElementById('days-list');
   el.innerHTML=days.map((d,i)=>`
-    <div class="day-row">
-      <div class="field" style="flex:1.4">
-        <label>Día ${i+1} — Fecha</label>
-        <input type="date" value="${d.date||''}" onchange="setDayDate(${i},this.value)">
+    <div class="day-card">
+      <div class="day-row">
+        <div class="field" style="flex:1.4">
+          <label>Día ${i+1} — Fecha</label>
+          <input type="date" value="${d.date||''}" onchange="setDayDate(${i},this.value)">
+        </div>
+        <div class="field" style="max-width:90px">
+          <label>Inicio</label>
+          <input type="time" value="${d.start||'09:00'}" onchange="setDayStart(${i},this.value)">
+        </div>
+        ${days.length>1?`<button class="stop-act" title="Eliminar día" onclick="removeDay(${i})">🗑</button>`:''}
       </div>
-      <div class="field" style="max-width:90px">
-        <label>Inicio</label>
-        <input type="time" value="${d.start||'09:00'}" onchange="setDayStart(${i},this.value)">
+      <div class="field" style="margin-top:4px">
+        <label>🏨 Punto de partida del día (opcional)</label>
+        <div class="geo-search">
+          <input type="text" id="d${i}_geo" placeholder="🔍 Buscar hotel, dirección o lugar de salida" oninput="scheduleDayOriginSearch(${i})">
+          <div class="geo-results" id="dayorigresults_${i}"></div>
+        </div>
+        ${d.origin?`<div class="stop-map-hint">🏨 ${esc(d.origin.address)} <span style="cursor:pointer;color:var(--r)" onclick="clearDayOrigin(${i})">✕ quitar</span></div>`:''}
       </div>
-      ${days.length>1?`<button class="stop-act" title="Eliminar día" onclick="removeDay(${i})">🗑</button>`:''}
     </div>`).join('');
 }
 function setDayDate(i,v){days[i].date=v;renderStopsList()}
 function setDayStart(i,v){days[i].start=v||'09:00';recalcTimes();renderStopsList()}
 function addDay(){
-  days.push({date:'',start:'09:00'});
+  days.push({date:'',start:'09:00',origin:null});
   renderDaysList();
   toast('✓ Día '+days.length+' añadido');
 }
@@ -471,8 +483,12 @@ function renderStopsList(){
             <textarea id="s${i}_desc" rows="3" placeholder="Descripción de la parada…" style="resize:vertical" oninput="stops[${i}].desc=this.value">${esc(s.desc)}</textarea>
           </div>
           <div class="field">
-            <label>Wikipedia URL</label>
-            <input type="text" id="s${i}_wiki" value="${esc(s.wiki)}" placeholder="https://es.wikipedia.org/wiki/…" oninput="stops[${i}].wiki=this.value">
+            <label>Wikipedia</label>
+            <div class="geo-search">
+              <input type="text" id="s${i}_wiki" value="${esc(s.wiki)}" placeholder="https://es.wikipedia.org/wiki/…" oninput="stops[${i}].wiki=this.value">
+              <div class="geo-results" id="wikiresults_${i}"></div>
+            </div>
+            <button class="drop-pin-btn" type="button" onclick="searchWikipedia(${i})">🔎 Buscar en Wikipedia por nombre</button>
           </div>
           <div class="coords-row">
             <input type="text" id="s${i}_lat" placeholder="Lat" value="${s.lat??''}" oninput="updateLatLng(${i})">
@@ -538,6 +554,67 @@ function pickGeoResult(i,gi){
   renderMarkers();
   updateRoute();
   setActiveStop(i);
+}
+
+let wikiSearchCache={};
+function searchWikipedia(i){
+  const s=stops[i];
+  const q=(s.name||'').trim();
+  const box=document.getElementById('wikiresults_'+i);
+  if(!q){if(box){box.classList.add('on');box.innerHTML='<div class="geo-result disabled">Escribe primero el nombre de la parada</div>'}return}
+  if(box){box.innerHTML='<div class="geo-result disabled">Buscando…</div>';box.classList.add('on')}
+  fetch(`https://es.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&format=json&origin=*&srlimit=5`)
+    .then(r=>r.json())
+    .then(d=>{
+      const results=d.query?.search||[];
+      wikiSearchCache[i]=results;
+      if(!box)return;
+      if(!results.length){box.innerHTML='<div class="geo-result disabled">Sin resultados</div>';return}
+      box.innerHTML=results.map((r,gi)=>`<div class="geo-result" onclick="pickWikiResult(${i},${gi})">${esc(r.title)}</div>`).join('');
+    })
+    .catch(()=>{if(box)box.innerHTML='<div class="geo-result disabled">Error de búsqueda</div>'});
+}
+function pickWikiResult(i,gi){
+  const r=wikiSearchCache[i]?.[gi];
+  if(!r)return;
+  const url='https://es.wikipedia.org/wiki/'+encodeURIComponent(r.title.replace(/ /g,'_'));
+  stops[i].wiki=url;
+  const input=document.getElementById('s'+i+'_wiki');
+  if(input)input.value=url;
+  const box=document.getElementById('wikiresults_'+i);
+  if(box){box.classList.remove('on');box.innerHTML=''}
+}
+
+let dayOrigSearchTimers={};
+let dayOrigResultsCache={};
+function scheduleDayOriginSearch(i){
+  clearTimeout(dayOrigSearchTimers[i]);
+  dayOrigSearchTimers[i]=setTimeout(()=>dayOriginSearch(i),500);
+}
+function dayOriginSearch(i){
+  const q=document.getElementById('d'+i+'_geo')?.value.trim();
+  const box=document.getElementById('dayorigresults_'+i);
+  if(!q){if(box){box.classList.remove('on');box.innerHTML=''}return}
+  if(box){box.innerHTML='<div class="geo-result disabled">Buscando…</div>';box.classList.add('on')}
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(q)}`)
+    .then(r=>r.json())
+    .then(results=>{
+      dayOrigResultsCache[i]=results;
+      if(!box)return;
+      if(!results.length){box.innerHTML='<div class="geo-result disabled">Sin resultados</div>';return}
+      box.innerHTML=results.map((r,gi)=>`<div class="geo-result" onclick="pickDayOriginResult(${i},${gi})">${esc(r.display_name)}</div>`).join('');
+    })
+    .catch(()=>{if(box)box.innerHTML='<div class="geo-result disabled">Error de búsqueda</div>'});
+}
+function pickDayOriginResult(i,gi){
+  const r=dayOrigResultsCache[i]?.[gi];
+  if(!r)return;
+  days[i].origin={lat:parseFloat(parseFloat(r.lat).toFixed(6)),lng:parseFloat(parseFloat(r.lon).toFixed(6)),address:r.display_name};
+  renderDaysList();
+}
+function clearDayOrigin(i){
+  days[i].origin=null;
+  renderDaysList();
 }
 
 function scheduleReverseGeocode(i){
@@ -610,11 +687,14 @@ function removeTag(i,ti){stops[i].tags.splice(ti,1);renderTags(i)}
 
 function renderMarkers(){
   stopMarkers.forEach(m=>map.removeLayer(m));stopMarkers.length=0;
+  const dayCounters={};
   stops.forEach((s,i)=>{
     if(s.lat===null||s.lng===null)return;
+    const localPos=(dayCounters[s.day]=(dayCounters[s.day]||0)+1);
+    const dcol=DCOL[((s.day||1)-1)%DCOL.length];
     const mk=L.marker([s.lat,s.lng],{
       icon:L.divIcon({className:'',
-        html:`<div style="width:26px;height:26px;border-radius:50%;background:${i===0?'#5edd8a':'#5bb8f5'};color:#0a0c12;font-family:monospace;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,.3);box-shadow:0 2px 8px rgba(0,0,0,.7)">${i+1}</div>`,
+        html:`<div style="width:26px;height:26px;border-radius:50%;background:${localPos===1?'#5edd8a':dcol};color:#0a0c12;font-family:monospace;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,.3);box-shadow:0 2px 8px rgba(0,0,0,.7)">${localPos}</div>`,
         iconSize:[26,26],iconAnchor:[13,13]}),
       draggable:true,zIndexOffset:200
     }).addTo(map);
@@ -652,7 +732,7 @@ function loadExisting(){
   document.getElementById('t-emoji').value=data.emoji||'📍';
   document.getElementById('t-duration').value=data.duration||'';
   updateTitle();
-  days=(data.days&&data.days.length)?data.days.map(d=>({date:d.date||'',start:d.start||'09:00'})):[{date:'',start:data.startTime||'09:00'}];
+  days=(data.days&&data.days.length)?data.days.map(d=>({date:d.date||'',start:d.start||'09:00',origin:d.origin||null})):[{date:'',start:data.startTime||'09:00',origin:null}];
   renderDaysList();
   stops=(data.stops||[]).map((s,i)=>({...s,_id:s._id||genId(),day:s.day||1}));
   renderStopsList();
@@ -670,7 +750,7 @@ function buildTourData(){
     title:`${meta.emoji} ${meta.city} · Tour`,
     header:`${meta.emoji} ${meta.city.toUpperCase()} · ${meta.startTime}`,
     center,zoom:15,
-    days:days.map(d=>({date:d.date||'',start:d.start||'09:00'})),
+    days:days.map(d=>({date:d.date||'',start:d.start||'09:00',origin:d.origin||null})),
     stops:stops.map((s,i)=>({...s,n:i+1}))
   };
 }
