@@ -209,6 +209,7 @@ const LS={
 
 let stops=[];
 let days=[{date:'',start:'09:00'}];
+const DCOL=['#5bb8f5','#f5a623','#5edd8a','#f55b8a','#b07ef5','#5bf5d0','#f5d65b','#7ea8f5'];
 let map=null;
 let placingStopIdx=null;
 let editingStop=null;
@@ -409,8 +410,10 @@ function renderStopsList(){
   days.forEach((day,di)=>{
     const dayNum=di+1;
     const dayStops=stops.map((s,i)=>({s,i})).filter(o=>o.s.day===dayNum);
+    const dcol=DCOL[di%DCOL.length];
     const hd=document.createElement('div');
     hd.className='day-section-hd';
+    hd.style.cssText=`border-bottom-color:${dcol}55;color:${dcol}`;
     hd.innerHTML=`<span>📅 Día ${dayNum}${day.date?' · '+fmtDateLong(day.date):''}</span><button class="add-stop-btn" onclick="addStop(${dayNum})">+ Parada</button>`;
     el.appendChild(hd);
     if(!dayStops.length){
@@ -425,7 +428,7 @@ function renderStopsList(){
       const isFirst=localPos===0,isLast=localPos===dayStops.length-1;
       div.innerHTML=`
         <div class="stop-head" onclick="toggleStop(${i})">
-          <div class="stop-num${isFirst?' first':''}">${localPos+1}</div>
+          <div class="stop-num${isFirst?' first':''}"${isFirst?'':` style="background:${dcol}"`}>${localPos+1}</div>
           <div class="stop-name-preview">${esc(s.name)}</div>
           <div class="stop-time-preview">${s.time}</div>
           <div class="stop-actions">

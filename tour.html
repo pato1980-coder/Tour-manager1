@@ -10,7 +10,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--b:#5bb8f5;--g:#5edd8a;--r:#e06060;--p:#b07ef5;--seen:#3a8a5c;--mo:'Courier New',monospace}
+:root{--b:#5bb8f5;--g:#5edd8a;--r:#e06060;--p:#b07ef5;--seen:#3a8a5c;--dc:#5bb8f5;--mo:'Courier New',monospace}
 html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overflow:hidden;color:#e8e6df}
 #map{position:fixed;inset:0;z-index:0}
 
@@ -43,9 +43,9 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 .rs-chip.on{border-color:var(--b);color:#fff}
 .rs-chip.fastest .rs-t{color:var(--g);font-weight:700}
 .dchip{flex-shrink:0;padding:6px 12px;border-radius:14px;background:rgba(11,14,22,.85);
-  border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);font-family:var(--mo);
+  border:1px solid rgba(255,255,255,.15);border-left:3px solid var(--dcc,var(--b));color:rgba(255,255,255,.6);font-family:var(--mo);
   font-size:9px;cursor:pointer;white-space:nowrap;backdrop-filter:blur(8px)}
-.dchip.on{background:var(--b);color:#0a0c12;border-color:transparent;font-weight:700}
+.dchip.on{background:var(--dcc,var(--b));color:#0a0c12;border-color:transparent;font-weight:700}
 
 /* NAV PANEL */
 #navp{position:fixed;top:0;left:0;right:0;z-index:300;
@@ -93,6 +93,11 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 #reop-hd h2{font-size:16px;font-weight:700;color:#fff}
 #reop-x{background:none;border:none;color:rgba(255,255,255,.4);font-size:22px;cursor:pointer;padding:4px}
 #reop-hint{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.3);padding:10px 18px 4px;flex-shrink:0}
+#reop-sort{display:flex;gap:8px;padding:8px 18px 4px;flex-shrink:0}
+.reop-sbtn{flex:1;padding:9px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:var(--mo);font-size:9px;
+  font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .12s}
+.reop-sbtn:active{transform:scale(.96);opacity:.8}
 #reop-list{flex:1;overflow-y:auto;padding:4px 0;scrollbar-width:none}
 #reop-list::-webkit-scrollbar{display:none}
 .ritem{display:flex;align-items:center;gap:12px;padding:12px 18px;
@@ -118,7 +123,7 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 #bar::-webkit-scrollbar{display:none}
 .tl{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:60px;padding:2px 5px;cursor:pointer;flex-shrink:0}
 .tl-n{width:26px;height:26px;border-radius:50%;font-family:var(--mo);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid transparent;transition:all .2s}
-.tl-n.u{background:var(--b);color:#0a0c12}
+.tl-n.u{background:var(--dc);color:#0a0c12}
 .tl-n.s{background:var(--seen);color:#fff}
 .tl-n.fi{background:var(--g);color:#0a0c12}
 .tl-n.la{background:#8a6a3a;color:#fff}
@@ -171,7 +176,7 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 @keyframes rpl{0%{box-shadow:0 0 0 0 rgba(91,184,245,.5)}70%{box-shadow:0 0 0 16px rgba(91,184,245,0)}100%{box-shadow:0 0 0 0 rgba(91,184,245,0)}}
 .mk{width:26px;height:26px;border-radius:50%;font-family:var(--mo);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.7);cursor:pointer;border:2px solid rgba(255,255,255,.2);transition:transform .12s}
 .mk:active{transform:scale(.85)}
-.mk.u{background:var(--b);color:#0a0c12}
+.mk.u{background:var(--dc);color:#0a0c12}
 .mk.s{background:var(--seen);color:#fff}
 .mk.ac{background:#fff;color:#0a0c12;border-color:var(--b);box-shadow:0 0 0 3px rgba(91,184,245,.4)}
 .mk.fi{background:var(--g);color:#0a0c12}
@@ -244,6 +249,10 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
     <button id="reop-x" onclick="closeReorder()">✕</button>
   </div>
   <div id="reop-hint">Arrastra ☰ para cambiar el orden de visita</div>
+  <div id="reop-sort">
+    <button class="reop-sbtn" onclick="sortStopsByTime()">🕐 Por hora</button>
+    <button class="reop-sbtn" onclick="sortStopsByProximity()">📍 Por proximidad</button>
+  </div>
   <div id="reop-list"></div>
   <button id="reop-apply" onclick="applyReorder()">✓ Aplicar orden</button>
 </div>
@@ -297,6 +306,7 @@ const ttCache=new Map();
 const SPEED={foot:1.25,transit:5.5,car:8.5};
 const WAIT={foot:0,transit:180,car:60};
 const MCOL={foot:'#5bb8f5',transit:'#b07ef5',car:'#f5a623'};
+const DCOL=['#5bb8f5','#f5a623','#5edd8a','#f55b8a','#b07ef5','#5bf5d0','#f5d65b','#7ea8f5'];
 const MICO={foot:'🚶',transit:'🚌',car:'🚗'};
 const TICO={'turn-left':'←','turn-right':'→','turn-sharp-left':'↰','turn-sharp-right':'↱','turn-slight-left':'↖','turn-slight-right':'↗','uturn':'↩','continue':'↑','depart':'🚦','arrive':'🏁','roundabout':'⟳','rotary':'⟳','end of road':'↑','new name':'↑','fork':'③','merge':'⤵'};
 const TES={'turn-left':'Gira a la izquierda','turn-right':'Gira a la derecha','turn-sharp-left':'Giro cerrado izquierda','turn-sharp-right':'Giro cerrado derecha','turn-slight-left':'Dobla levemente izquierda','turn-slight-right':'Dobla levemente derecha','uturn':'Da la vuelta','continue':'Continúa recto','depart':'Sal de','arrive':'Has llegado','roundabout':'Toma la rotonda','rotary':'Toma la rotonda','end of road':'Al final gira','new name':'Continúa por','fork':'En el cruce','merge':'Incorpórate'};
@@ -346,6 +356,7 @@ function initTour(data){
   document.title=data.title||data.city||'Tour';
   updateTopTitle();
   buildDayBar();
+  applyDayColor();
   const savedSeen=LS.get('seen_'+TOUR_ID,[]);
   savedSeen.forEach(k=>seen.add(k));
   document.getElementById('loading').style.display='none';
@@ -373,12 +384,16 @@ function buildDayBar(){
   el.innerHTML=DAYS.map((d,i)=>{
     const n=i+1;
     const lbl='Día '+n+(d.date?' · '+fmtDateShort(d.date):'');
-    return `<div class="dchip${n===curDay?' on':''}" onclick="switchDay(${n})">${lbl}</div>`;
+    return `<div class="dchip${n===curDay?' on':''}" style="--dcc:${DCOL[i%DCOL.length]}" onclick="switchDay(${n})">${lbl}</div>`;
   }).join('');
+}
+function applyDayColor(){
+  document.documentElement.style.setProperty('--dc',DCOL[(curDay-1)%DCOL.length]);
 }
 function switchDay(n){
   if(n===curDay)return;
   curDay=n;closeSh();closeNav();
+  applyDayColor();
   rebuildDayStops();buildDayBar();updateTopTitle();
   buildMarkers();buildBar();drawTourRoute();updateRouteSummary();
   if(STOPS.length)map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]});
@@ -595,6 +610,30 @@ function startTouchDrag(e,i,row){
   document.addEventListener('touchmove',onMove,{passive:true});document.addEventListener('touchend',onEnd);
 }
 
+function sortStopsByTime(){
+  if(STOPS.length<2)return;
+  STOPS.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  STOPS.forEach((s,i)=>s.n=i+1);
+  ALL_STOPS=ALL_STOPS.filter(s=>s.day!==curDay).concat(STOPS);
+  renderReorderList();
+  toast('✓ Ordenado por hora');
+}
+function sortStopsByProximity(){
+  if(STOPS.length<2)return;
+  const ordered=[STOPS[0]],remaining=STOPS.slice(1);
+  while(remaining.length){
+    const last=ordered[ordered.length-1];
+    let bi=0,bd=Infinity;
+    remaining.forEach((s,i)=>{const d=hav(last.lat,last.lng,s.lat,s.lng);if(d<bd){bd=d;bi=i}});
+    ordered.push(remaining.splice(bi,1)[0]);
+  }
+  STOPS=ordered;
+  let[h,m]=STOPS[0].time?STOPS[0].time.split(':').map(Number):[9,0];
+  STOPS.forEach((s,i)=>{s.n=i+1;if(i>0){s.time=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`}m+=(s.stayMin||20)+10;h+=Math.floor(m/60);m%=60});
+  ALL_STOPS=ALL_STOPS.filter(s=>s.day!==curDay).concat(STOPS);
+  renderReorderList();
+  toast('✓ Ordenado por proximidad');
+}
 function reorderStops(from,to){
   if(from===to)return;
   const moved=STOPS.splice(from,1)[0];STOPS.splice(to,0,moved);
@@ -603,7 +642,14 @@ function reorderStops(from,to){
   ALL_STOPS=ALL_STOPS.filter(s=>s.day!==curDay).concat(STOPS);
   renderReorderList();
 }
-function applyReorder(){closeReorder();ttCache.clear();buildMarkers();buildBar();drawTourRoute();updateRouteSummary();toast('✓ Orden actualizado · Recalculando ruta…');map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]})}
+function applyReorder(){
+  closeReorder();ttCache.clear();
+  if(IS_CUSTOM){
+    const data=LS.get('tour_data_'+TOUR_ID);
+    if(data){data.stops=ALL_STOPS.map(({n,...rest})=>rest);data.days=DAYS;LS.set('tour_data_'+TOUR_ID,data);}
+  }
+  buildMarkers();buildBar();drawTourRoute();updateRouteSummary();toast('✓ Orden actualizado · Recalculando ruta…');map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]})
+}
 
 async function getTT(fLa,fLo,tLa,tLo,mode){
   const k=`${fLa.toFixed(3)},${fLo.toFixed(3)}-${tLa.toFixed(3)},${tLo.toFixed(3)}-${mode}`;
