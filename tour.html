@@ -291,7 +291,7 @@ let myLat=null,myLng=null,myMk=null,myAcc=null,gpsOn=false;
 let cH=null,cRaw=[],cTs=0,cStale=null,wId=null;
 const mks=[];
 let tLines=[],nLines=[];
-let nSteps=[],nIdx=0,nDestLat=null,nDestLng=null,nDestIdx=null;
+let nSteps=[],nIdx=0,nDestLat=null,nDestLng=null,nDestIdx=null,pendingNav=false,pendingIdx=null;
 const ttCache=new Map();
 
 const SPEED={foot:1.25,transit:5.5,car:8.5};
@@ -625,10 +625,20 @@ function nextStop(){
   actIdx=next;startNav();
 }
 function startNav(){
-  if(actIdx===null)return;closeSh();
-  if(!myLat){document.getElementById('navp').classList.add('open');document.getElementById('nav-ins').textContent='Activa el GPS primero';document.getElementById('nav-arr').textContent='📍';return}
-  const s=STOPS[actIdx];nDestIdx=actIdx;navTo(s.lat,s.lng,actIdx);
+  if(actIdx===null)return;
+  const idx=actIdx;closeSh();
+  if(!myLat){
+    document.getElementById('navp').classList.add('open');
+    document.getElementById('nav-ins').textContent='Obteniendo tu ubicación…';
+    document.getElementById('nav-arr').textContent='⏳';
+    document.getElementById('nav-dist').textContent='…';
+    pendingNav=true;pendingIdx=idx;
+    if(!gpsOn)startGPS();
+    return;
+  }
+  navToIdx(idx);
 }
+function navToIdx(idx){const s=STOPS[idx];nDestIdx=idx;navTo(s.lat,s.lng,idx);}
 
 async function navTo(toLat,toLng,stopIdx){
   nDestLat=toLat;nDestLng=toLng;nDestIdx=stopIdx;
@@ -695,7 +705,7 @@ function trackNav(lat,lng){
   const eta=new Date(Date.now()+(dEnd/SPEED[tMode])*1000);document.getElementById('nv-eta').textContent=`${eta.getHours().toString().padStart(2,'0')}:${eta.getMinutes().toString().padStart(2,'0')}`;
 }
 
-function closeNav(){document.getElementById('navp').classList.remove('open');nLines.forEach(l=>map.removeLayer(l));nLines=[];nSteps=[];nIdx=0;nDestLat=null;nDestLng=null;nDestIdx=null;document.getElementById('nav-upcoming').innerHTML='';document.getElementById('nv-eta').classList.remove('warn')}
+function closeNav(){document.getElementById('navp').classList.remove('open');nLines.forEach(l=>map.removeLayer(l));nLines=[];nSteps=[];nIdx=0;nDestLat=null;nDestLng=null;nDestIdx=null;pendingNav=false;pendingIdx=null;document.getElementById('nav-upcoming').innerHTML='';document.getElementById('nv-eta').classList.remove('warn')}
 
 function buildGI(){return L.divIcon({className:'',html:`<div class="gw"><div class="gr"></div><div class="gb"></div><div class="gc hid" id="gps-cone"></div></div>`,iconSize:[44,44],iconAnchor:[22,22]})}
 function updCone(h){const c=document.getElementById('gps-cone');if(!c)return;c.classList.remove('hid');c.style.transform=`rotate(${h}deg)`}
@@ -723,11 +733,13 @@ function onPos(pos){
   myAcc=L.circle([la,lo],{radius:ac,color:'#5bb8f5',fillColor:'#5bb8f5',fillOpacity:.06,weight:1}).addTo(map);
   document.getElementById('top-title').textContent=(TOUR.header||TOUR.city||'Tour')+(DAYS.length>1?` · Día ${curDay}/${DAYS.length}`:'')+` · GPS ±${Math.round(ac)}m`;
   if(nDestLat!==null&&nSteps.length)trackNav(la,lo);
+  if(pendingNav){pendingNav=false;navToIdx(pendingIdx)}
 }
 function onErr(e){
   gpsOn=false;document.getElementById('fab-gps').textContent='📍';document.getElementById('fab-gps').classList.remove('gon');document.getElementById('fab-ctr').style.display='none';
   const msgs={1:'GPS: Permiso denegado — actívalo en Ajustes',2:'GPS: Señal no disponible',3:'GPS: Tiempo agotado'};
   toast(msgs[e?.code]||'Error GPS desconocido');
+  if(pendingNav){pendingNav=false;document.getElementById('nav-ins').textContent='No se pudo obtener tu ubicación';document.getElementById('nav-arr').textContent='⚠';document.getElementById('nav-street').textContent=msgs[e?.code]||'';document.getElementById('nav-dist').textContent='—'}
 }
 function toggleGPS(){if(gpsOn)stopGPS();else startGPS()}
 async function startGPS(){
