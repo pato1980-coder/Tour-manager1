@@ -631,11 +631,11 @@ async function updateRoute(){
   routeLine=L.polyline(lls,{color:'#5bb8f5',weight:2.5,opacity:.6,dashArray:'6 4'}).addTo(map);
   try{
     const coords=placed.map(s=>`${s.lng},${s.lat}`).join(';');
-    const r=await fetch(`https://router.project-osrm.org/trip/v1/foot/${coords}?overview=full&geometries=geojson&source=first&destination=last&roundtrip=false`,{signal:AbortSignal.timeout(8000)});
+    const r=await fetch(`https://router.project-osrm.org/route/v1/foot/${coords}?overview=full&geometries=geojson&alternatives=false&continue_straight=false`,{signal:AbortSignal.timeout(8000)});
     const d=await r.json();
-    if(d.code==='Ok'&&d.trips?.length){
+    if(d.code==='Ok'&&d.routes?.length){
       if(routeLine)map.removeLayer(routeLine);
-      const real=d.trips[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+      const real=d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
       routeLine=L.polyline(real,{color:'#5bb8f5',weight:3,opacity:.85}).addTo(map);
     }
   }catch(e){}

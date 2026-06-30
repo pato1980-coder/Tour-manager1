@@ -30,6 +30,18 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
   display:none;gap:6px;padding:0 12px;overflow-x:auto;scrollbar-width:none}
 #daybar::-webkit-scrollbar{display:none}
 #daybar.on{display:flex}
+
+#route-summary{position:fixed;top:calc(env(safe-area-inset-top,0) + 56px);left:0;right:0;z-index:98;
+  display:none;gap:6px;padding:0 12px;overflow-x:auto;scrollbar-width:none}
+#route-summary::-webkit-scrollbar{display:none}
+#route-summary.on{display:flex}
+#daybar.on ~ #route-summary{top:calc(env(safe-area-inset-top,0) + 92px)}
+.rs-chip{display:flex;align-items:center;gap:4px;padding:6px 12px;border-radius:14px;
+  background:rgba(11,14,22,.85);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);
+  font-family:var(--mo);font-size:9px;cursor:pointer;white-space:nowrap;backdrop-filter:blur(8px);
+  flex-shrink:0;transition:all .15s}
+.rs-chip.on{border-color:var(--b);color:#fff}
+.rs-chip.fastest .rs-t{color:var(--g);font-weight:700}
 .dchip{flex-shrink:0;padding:6px 12px;border-radius:14px;background:rgba(11,14,22,.85);
   border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);font-family:var(--mo);
   font-size:9px;cursor:pointer;white-space:nowrap;backdrop-filter:blur(8px)}
@@ -199,6 +211,7 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 </div>
 
 <div id="daybar"></div>
+<div id="route-summary"></div>
 
 <div id="navp">
   <button id="nav-x" onclick="closeNav()">✕ Cerrar</button>
@@ -367,7 +380,7 @@ function switchDay(n){
   if(n===curDay)return;
   curDay=n;closeSh();closeNav();
   rebuildDayStops();buildDayBar();updateTopTitle();
-  buildMarkers();buildBar();drawTourRoute();
+  buildMarkers();buildBar();drawTourRoute();updateRouteSummary();
   if(STOPS.length)map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]});
 }
 
@@ -383,7 +396,7 @@ function initMap(){
   if(h>=20||h<7){drkL.addTo(map);satMode=false;document.getElementById('fab-sat').classList.remove('on')}
   else{satL.addTo(map);lblL.addTo(map)}
   map.on('click',closeSh);
-  buildMarkers();drawTourRoute();buildBar();
+  buildMarkers();drawTourRoute();updateRouteSummary();buildBar();
   map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]});
 }
 
@@ -393,22 +406,54 @@ function toggleSat(){
   else{map.removeLayer(satL);map.removeLayer(lblL);drkL.addTo(map);b.classList.remove('on')}
 }
 
+let rGen=0;
 async function drawTourRoute(){
+  const myGen=++rGen;
   tLines.forEach(l=>map.removeLayer(l));tLines=[];
   if(STOPS.length<2)return;
+  const col=MCOL[tMode];
   const straight=STOPS.map(s=>[s.lat,s.lng]);
-  tLines.push(L.polyline(straight,{color:'#5bb8f5',weight:2.5,opacity:.5,dashArray:'6 4'}).addTo(map));
+  tLines.push(L.polyline(straight,{color:col,weight:2.5,opacity:.5,dashArray:'6 4'}).addTo(map));
   try{
+    const profile=tMode==='car'?'car':'foot';
     const coords=STOPS.map(s=>`${s.lng},${s.lat}`).join(';');
-    const r=await fetch(`https://router.project-osrm.org/trip/v1/foot/${coords}?overview=full&geometries=geojson&source=first&destination=last&roundtrip=false`,{signal:AbortSignal.timeout(10000)});
+    const r=await fetch(`https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=geojson&alternatives=false&continue_straight=false`,{signal:AbortSignal.timeout(10000)});
     const d=await r.json();
-    if(d.code==='Ok'&&d.trips?.length){
+    if(myGen!==rGen)return;
+    if(d.code==='Ok'&&d.routes?.length){
       tLines.forEach(l=>map.removeLayer(l));tLines=[];
-      const lls=d.trips[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+      const lls=d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
       tLines.push(L.polyline(lls,{color:'#000',weight:6,opacity:.25}).addTo(map));
-      tLines.push(L.polyline(lls,{color:'#5bb8f5',weight:3.5,opacity:.9}).addTo(map));
+      tLines.push(L.polyline(lls,{color:col,weight:3.5,opacity:.9}).addTo(map));
     }
   }catch(e){}
+}
+
+let rsGen=0;
+async function updateRouteSummary(){
+  const myGen=++rsGen;
+  const el=document.getElementById('route-summary');
+  if(!el)return;
+  if(STOPS.length<2){el.classList.remove('on');el.innerHTML='';return}
+  el.classList.add('on');
+  el.innerHTML=['foot','transit','car'].map(m=>
+    `<div class="rs-chip${m===tMode?' on':''}" data-mode="${m}" onclick="setMode('${m}')">${MICO[m]} <span class="rs-t" id="rs-${m}">…</span></div>`
+  ).join('');
+  const totals={};
+  for(const m of['foot','transit','car']){
+    let total=0;
+    for(let i=0;i<STOPS.length-1;i++){
+      const a=STOPS[i],b=STOPS[i+1];
+      const tt=await getTT(a.lat,a.lng,b.lat,b.lng,m);
+      total+=tt.dur;
+    }
+    if(myGen!==rsGen)return;
+    totals[m]=total;
+    const t=document.getElementById('rs-'+m);
+    if(t)t.textContent=fmtT(total);
+  }
+  const fastest=Object.entries(totals).sort((a,b)=>a[1]-b[1])[0][0];
+  document.querySelectorAll('.rs-chip').forEach(c=>c.classList.toggle('fastest',c.dataset.mode===fastest));
 }
 
 function mkCls(s,i){
@@ -504,7 +549,7 @@ function deleteStop(){
     const data=LS.get('tour_data_'+TOUR_ID);
     if(data){data.stops=ALL_STOPS.map(({n,...rest})=>rest);data.days=DAYS;LS.set('tour_data_'+TOUR_ID,data);}
   }
-  closeSh();buildMarkers();buildBar();drawTourRoute();
+  closeSh();buildMarkers();buildBar();drawTourRoute();updateRouteSummary();
   toast('🗑 Parada eliminada');
 }
 
@@ -552,7 +597,7 @@ function reorderStops(from,to){
   ALL_STOPS=ALL_STOPS.filter(s=>s.day!==curDay).concat(STOPS);
   renderReorderList();
 }
-function applyReorder(){closeReorder();ttCache.clear();buildMarkers();buildBar();drawTourRoute();toast('✓ Orden actualizado · Recalculando ruta…');map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]})}
+function applyReorder(){closeReorder();ttCache.clear();buildMarkers();buildBar();drawTourRoute();updateRouteSummary();toast('✓ Orden actualizado · Recalculando ruta…');map.fitBounds(L.latLngBounds(STOPS.map(s=>[s.lat,s.lng])),{padding:[60,60]})}
 
 async function getTT(fLa,fLo,tLa,tLo,mode){
   const k=`${fLa.toFixed(3)},${fLo.toFixed(3)}-${tLa.toFixed(3)},${tLo.toFixed(3)}-${mode}`;
@@ -567,7 +612,13 @@ async function getTT(fLa,fLo,tLa,tLo,mode){
   return{dist,dur:Math.round(dist/SPEED[mode]+(mode==='transit'&&dist>400?WAIT.transit:0))};
 }
 
-function setMode(m){tMode=m;['foot','transit','car'].forEach(k=>document.getElementById('nm-'+k)?.classList.toggle('on',k===m));ttCache.clear();if(nDestLat!==null)navTo(nDestLat,nDestLng,nDestIdx)}
+function setMode(m){
+  tMode=m;
+  ['foot','transit','car'].forEach(k=>document.getElementById('nm-'+k)?.classList.toggle('on',k===m));
+  document.querySelectorAll('.rs-chip').forEach(c=>c.classList.toggle('on',c.dataset.mode===m));
+  drawTourRoute();
+  if(nDestLat!==null)navTo(nDestLat,nDestLng,nDestIdx);
+}
 function nextStop(){
   const next=STOPS.findIndex(s=>!seen.has(skey(s)));
   if(next<0){toast(curDay<DAYS.length?'✓ Día completado — desliza al Día '+(curDay+1):'¡Tour completado! 🎉');return}
