@@ -537,7 +537,7 @@ async function getTT(fLa,fLo,tLa,tLo,mode){
   if(ttCache.has(k))return ttCache.get(k);
   const dist=hav(fLa,fLo,tLa,tLo);
   try{
-    const p=mode==='car'?'car':'foot';
+    const p=mode==='car'?'driving':'foot';
     const r=await fetch(
       `https://router.project-osrm.org/route/v1/${p}/${fLo},${fLa};${tLo},${tLa}`+
       `?overview=false&alternatives=false`,
@@ -591,7 +591,7 @@ async function navTo(toLat,toLng,stopIdx){
   document.getElementById('navp').classList.add('open');
 
   try{
-    const p=tMode==='car'?'car':'foot';
+    const p=tMode==='car'?'driving':'foot';
     // steps=true para turn-by-turn real
     const url=`https://router.project-osrm.org/route/v1/${p}/${myLng},${myLat};${toLng},${toLat}`+
       `?steps=true&overview=full&geometries=geojson&alternatives=false&continue_straight=false`;
