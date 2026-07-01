@@ -724,7 +724,7 @@ async function drawDayRoute(dn,multiDay){
   try{
     const r=await fetch('https://valhalla.routing.openstreetmap.de/route',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({locations:placed.map(s=>({lon:s.lng,lat:s.lat,type:'break'})),costing:'pedestrian',units:'km'}),
+      body:JSON.stringify({locations:placed.map(s=>({lon:s.lng,lat:s.lat,type:'break'})),costing:'pedestrian',units:'km',costing_options:{pedestrian:{shortest:true}}}),
       signal:AbortSignal.timeout(10000)
     });
     const d=await r.json();
@@ -742,8 +742,6 @@ function loadExisting(){
   if(!data){toast('⚠ Tour no encontrado');return}
   document.getElementById('t-city').value=data.city||'';
   document.getElementById('t-country').value=data.country||'';
-  document.getElementById('t-emoji').value=data.emoji||'📍';
-  document.getElementById('t-duration').value=data.duration||'';
   updateTitle();
   days=(data.days&&data.days.length)?data.days.map(d=>({date:d.date||'',start:d.start||'09:00',origin:d.origin||null,sameAsFirst:!!d.sameAsFirst})):[{date:'',start:data.startTime||'09:00',origin:null}];
   renderDaysList();

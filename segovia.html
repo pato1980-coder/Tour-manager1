@@ -541,7 +541,7 @@ async function getTT(fLa,fLo,tLa,tLo,mode){
     if(mode==='foot'){
       const r=await fetch('https://valhalla.routing.openstreetmap.de/route',{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({locations:[{lon:fLo,lat:fLa,type:'break'},{lon:tLo,lat:tLa,type:'break'}],costing:'pedestrian',units:'km'}),
+        body:JSON.stringify({locations:[{lon:fLo,lat:fLa,type:'break'},{lon:tLo,lat:tLa,type:'break'}],costing:'pedestrian',units:'km',costing_options:{pedestrian:{shortest:true}}}),
         signal:AbortSignal.timeout(6000)
       });
       const d=await r.json();
