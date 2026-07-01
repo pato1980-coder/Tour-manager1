@@ -388,7 +388,7 @@ function defaultStop(dayNum){
   const startTime=day?.start||'09:00';
   let[h,m]=startTime.split(':').map(Number);
   stops.filter(s=>s.day===dayNum).forEach(s=>{m+=s.stayMin+10;h+=Math.floor(m/60);m%=60});
-  return{_id:genId(),day:dayNum,name:'Parada',time:`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`,dur:'30 min · gratis',stayMin:30,desc:'',lat:null,lng:null,address:'',tags:[],wiki:''};
+  return{_id:genId(),day:dayNum,name:'Parada',time:`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`,manualTime:false,dur:'30 min · gratis',stayMin:30,desc:'',lat:null,lng:null,address:'',tags:[],wiki:''};
 }
 
 function addStop(dayNum){
@@ -438,13 +438,30 @@ function recalcTimes(){
     if(!dayStops.length)return;
     let[h,m]=(day.start||'09:00').split(':').map(Number);
     dayStops.forEach(s=>{
-      s.time=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      if(s.manualTime){
+        [h,m]=s.time.split(':').map(Number);
+      }else{
+        s.time=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      }
       m+=s.stayMin+10;h+=Math.floor(m/60);m%=60;
     });
   });
 }
 
 function recalcAllTimes(){recalcTimes();renderStopsList()}
+
+function setStopTime(i,val){
+  if(!val)return;
+  stops[i].time=val;
+  stops[i].manualTime=true;
+  recalcTimes();
+  updateTimePreviews();
+}
+function clearStopManualTime(i){
+  stops[i].manualTime=false;
+  recalcTimes();
+  renderStopsList();
+}
 
 function setActiveStop(idx){
   editingStop=idx;
@@ -458,6 +475,8 @@ function getStopFromForm(idx){
   stops[idx].name=document.getElementById(pfx+'name')?.value||stops[idx].name;
   stops[idx].dur=document.getElementById(pfx+'dur')?.value||stops[idx].dur;
   stops[idx].stayMin=parseInt(document.getElementById(pfx+'stay')?.value)||stops[idx].stayMin;
+  const timeEl=document.getElementById(pfx+'time');
+  if(timeEl&&timeEl.value)stops[idx].time=timeEl.value;
   stops[idx].desc=document.getElementById(pfx+'desc')?.value||'';
   const wikiEl=document.getElementById(pfx+'wiki');
   if(wikiEl)stops[idx].wiki=wikiEl.value;
@@ -520,9 +539,18 @@ function renderStopsList(){
             <input type="text" id="s${i}_name" value="${esc(s.name)}" oninput="stops[${i}].name=this.value;updatePreviewName(${i},this.value)">
           </div>
           ${days.length>1?`<div class="field"><label>Día</label><select id="s${i}_day" onchange="changeStopDay(${i},this.value)">${days.map((d,ddi)=>`<option value="${ddi+1}" ${s.day===ddi+1?'selected':''}>Día ${ddi+1}${d.date?' · '+fmtDateShort(d.date):''}</option>`).join('')}</select></div>`:''}
+          <div class="field-row" style="align-items:flex-end">
+            <div class="field" style="flex:1.2">
+              <label>Hora inicio${s.manualTime?' <span style="color:#f5a623;font-size:9px">✎ fija</span>':''}</label>
+              <div style="display:flex;align-items:center;gap:4px">
+                <input type="time" id="s${i}_time" value="${s.time}" oninput="setStopTime(${i},this.value)" style="flex:1${s.manualTime?';border-color:#f5a623':';opacity:.65'}">
+                ${s.manualTime?`<button class="stop-act" title="Restablecer hora automática" onclick="clearStopManualTime(${i})" style="font-size:13px;padding:4px 6px">↺</button>`:''}
+              </div>
+            </div>
+            <div class="field" style="max-width:70px"><label>Min</label><input type="number" id="s${i}_stay" value="${s.stayMin}" min="5" step="5" oninput="stops[${i}].stayMin=parseInt(this.value)||30;recalcTimes();updateTimePreviews()"></div>
+          </div>
           <div class="field-row">
             <div class="field"><label>Duración / costo</label><input type="text" id="s${i}_dur" value="${esc(s.dur)}" placeholder="30 min · gratis" oninput="stops[${i}].dur=this.value"></div>
-            <div class="field" style="max-width:70px"><label>Min</label><input type="number" id="s${i}_stay" value="${s.stayMin}" min="5" step="5" oninput="stops[${i}].stayMin=parseInt(this.value)||30;recalcTimes();updateTimePreviews()"></div>
           </div>
           <div class="field">
             <label>Descripción</label>
@@ -685,8 +713,13 @@ function updatePreviewName(i,v){
 function updateTimePreviews(){
   document.querySelectorAll('.stop-card').forEach(card=>{
     const i=parseInt(card.dataset.idx);
+    if(!stops[i])return;
     const el=card.querySelector('.stop-time-preview');
-    if(el&&stops[i])el.textContent=stops[i].time;
+    if(el)el.textContent=stops[i].time;
+    if(!stops[i].manualTime){
+      const ti=document.getElementById('s'+i+'_time');
+      if(ti)ti.value=stops[i].time;
+    }
   });
 }
 
@@ -777,7 +810,7 @@ function loadExisting(){
   updateTitle();
   days=(data.days&&data.days.length)?data.days.map(d=>({date:d.date||'',start:d.start||'09:00',origin:d.origin||null,sameAsFirst:!!d.sameAsFirst})):[{date:'',start:data.startTime||'09:00',origin:null}];
   renderDaysList();
-  stops=(data.stops||[]).map((s,i)=>({...s,_id:s._id||genId(),day:s.day||1}));
+  stops=(data.stops||[]).map((s,i)=>({...s,_id:s._id||genId(),day:s.day||1,manualTime:!!s.manualTime}));
   renderStopsList();
   renderMarkers();
   updateRoute();
