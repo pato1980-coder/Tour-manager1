@@ -279,6 +279,7 @@ let STOPS = [
 ];
 
 /* ══ CONSTANTES ══ */
+function decodePolyline6(str){let i=0,lat=0,lng=0,r=[];while(i<str.length){let b,s=0,v=0;do{b=str.charCodeAt(i++)-63;v|=(b&0x1f)<<s;s+=5}while(b>=0x20);lat+=(v&1)?~(v>>1):(v>>1);s=0;v=0;do{b=str.charCodeAt(i++)-63;v|=(b&0x1f)<<s;s+=5}while(b>=0x20);lng+=(v&1)?~(v>>1):(v>>1);r.push([lat/1e6,lng/1e6])}return r}
 const SPEED={foot:1.25,transit:5.5,car:8.5};
 const WAIT ={foot:0,  transit:180,  car:60};
 const MCOL ={foot:'#5bb8f5',transit:'#b07ef5',car:'#f5a623'};
@@ -537,19 +538,18 @@ async function getTT(fLa,fLo,tLa,tLo,mode){
   if(ttCache.has(k))return ttCache.get(k);
   const dist=hav(fLa,fLo,tLa,tLo);
   try{
-    const p=mode==='car'?'driving':'foot';
-    const r=await fetch(
-      `https://router.project-osrm.org/route/v1/${p}/${fLo},${fLa};${tLo},${tLa}`+
-      `?overview=false&alternatives=false`,
-      {signal:AbortSignal.timeout(6000)}
-    );
-    const d=await r.json();
-    if(d.code==='Ok'){
-      const rd=d.routes[0].distance;
-      let dur=d.routes[0].duration;
-      if(mode==='transit')dur=rd<400?rd/SPEED.foot:rd/SPEED.transit+WAIT.transit;
-      else if(mode==='car')dur+=WAIT.car;
-      const res={dist:rd,dur:Math.round(dur)};ttCache.set(k,res);return res;
+    if(mode==='foot'){
+      const r=await fetch('https://valhalla.routing.openstreetmap.de/route',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({locations:[{lon:fLo,lat:fLa,type:'break'},{lon:tLo,lat:tLa,type:'break'}],costing:'pedestrian',units:'km'}),
+        signal:AbortSignal.timeout(6000)
+      });
+      const d=await r.json();
+      if(d.trip?.summary){const res={dist:Math.round(d.trip.summary.length*1000),dur:Math.round(d.trip.summary.time)};ttCache.set(k,res);return res}
+    }else{
+      const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${fLo},${fLa};${tLo},${tLa}?overview=false&alternatives=false`,{signal:AbortSignal.timeout(6000)});
+      const d=await r.json();
+      if(d.code==='Ok'){const rd=d.routes[0].distance;let dur=d.routes[0].duration;if(mode==='transit')dur=rd<400?rd/SPEED.foot:rd/SPEED.transit+WAIT.transit;else if(mode==='car')dur+=WAIT.car;const res={dist:rd,dur:Math.round(dur)};ttCache.set(k,res);return res}
     }
   }catch(e){}
   return{dist,dur:Math.round(dist/SPEED[mode]+(mode==='transit'&&dist>400?WAIT.transit:0))};

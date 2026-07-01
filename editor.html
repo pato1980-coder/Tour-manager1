@@ -580,6 +580,7 @@ function renderStopsList(){
 }
 
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function decodePolyline6(str){let i=0,lat=0,lng=0,r=[];while(i<str.length){let b,s=0,v=0;do{b=str.charCodeAt(i++)-63;v|=(b&0x1f)<<s;s+=5}while(b>=0x20);lat+=(v&1)?~(v>>1):(v>>1);s=0;v=0;do{b=str.charCodeAt(i++)-63;v|=(b&0x1f)<<s;s+=5}while(b>=0x20);lng+=(v&1)?~(v>>1):(v>>1);r.push([lat/1e6,lng/1e6])}return r}
 
 let geoSearchTimers={};
 let geoReverseTimers={};
@@ -788,14 +789,17 @@ async function drawDayRoute(dn,multiDay){
   const dashed=L.polyline(lls,{color,weight:2.5,opacity:.6,dashArray:'6 4'}).addTo(map);
   routeLines.push(dashed);
   try{
-    const coords=placed.map(s=>`${s.lng},${s.lat}`).join(';');
-    const r=await fetch(`https://router.project-osrm.org/route/v1/foot/${coords}?overview=full&geometries=geojson&alternatives=false&continue_straight=false`,{signal:AbortSignal.timeout(8000)});
+    const r=await fetch('https://valhalla.routing.openstreetmap.de/route',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({locations:placed.map(s=>({lon:s.lng,lat:s.lat,type:'break'})),costing:'pedestrian',units:'km'}),
+      signal:AbortSignal.timeout(10000)
+    });
     const d=await r.json();
-    if(d.code==='Ok'&&d.routes?.length){
-      map.removeLayer(dashed);
-      routeLines=routeLines.filter(l=>l!==dashed);
-      const real=d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
-      routeLines.push(L.polyline(real,{color,weight:3,opacity:.85}).addTo(map));
+    if(d.trip?.legs?.length){
+      map.removeLayer(dashed);routeLines=routeLines.filter(l=>l!==dashed);
+      const pts=[];
+      d.trip.legs.forEach((leg,i)=>{const seg=decodePolyline6(leg.shape);if(i>0)seg.shift();pts.push(...seg)});
+      routeLines.push(L.polyline(pts,{color,weight:3,opacity:.85}).addTo(map));
     }
   }catch(e){}
 }
