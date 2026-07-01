@@ -487,6 +487,7 @@ async function drawTourRoute(){
           body:JSON.stringify({locations:[{lon:leg.from.lng,lat:leg.from.lat,type:'break'},{lon:leg.to.lng,lat:leg.to.lat,type:'break'}],costing:'pedestrian',units:'km',costing_options:{pedestrian:{shortest:true}}}),
           signal:AbortSignal.timeout(10000)
         });
+        if(!r.ok)return;
         const d=await r.json();
         if(!d.trip?.legs?.length)return;
         const pts=[];d.trip.legs.forEach((l,i)=>{const seg=decodePolyline6(l.shape);if(i>0)seg.shift();pts.push(...seg)});
@@ -500,7 +501,7 @@ async function drawTourRoute(){
       if(myGen!==rGen)return;
       map.removeLayer(dashed[li]);
       tLines.push(L.polyline(lls,{color:'#000',weight:6,opacity:.25}).addTo(map));
-      tLines.push(L.polyline(lls,{color:MCOL[m],weight:3.5,opacity:.9}).addTo(map));
+      tLines.push(L.polyline(lls,{color:MCOL[m],weight:m==='transit'?2.5:3.5,opacity:.9,dashArray:m==='transit'?'10 5':null}).addTo(map));
     }catch(e){}
   }));
 }
@@ -756,8 +757,7 @@ async function getTT(fLa,fLo,tLa,tLo,mode){
         body:JSON.stringify({locations:[{lon:fLo,lat:fLa,type:'break'},{lon:tLo,lat:tLa,type:'break'}],costing:'pedestrian',units:'km',costing_options:{pedestrian:{shortest:true}}}),
         signal:AbortSignal.timeout(6000)
       });
-      const d=await r.json();
-      if(d.trip?.summary){const res={dist:Math.round(d.trip.summary.length*1000),dur:Math.round(d.trip.summary.time)};ttCache.set(k,res);return res}
+      if(r.ok){const d=await r.json();if(d.trip?.summary){const res={dist:Math.round(d.trip.summary.length*1000),dur:Math.round(d.trip.summary.time)};ttCache.set(k,res);return res}}
     }else{
       const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${fLo},${fLa};${tLo},${tLa}?overview=false&alternatives=false`,{signal:AbortSignal.timeout(6000)});
       const d=await r.json();
