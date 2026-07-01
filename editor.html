@@ -104,6 +104,10 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
   padding:7px 16px;font-family:var(--mo);font-size:10px;color:var(--b);
   pointer-events:none;white-space:nowrap;display:none}
 .map-hint.on{display:block}
+.map-style-toggle{position:absolute;top:14px;right:14px;z-index:500;display:flex;gap:4px}
+.mst-btn{padding:5px 10px;border-radius:6px;font-family:var(--mo);font-size:9px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.15);backdrop-filter:blur(8px);transition:all .15s;letter-spacing:.04em}
+.mst-btn.active{background:rgba(255,255,255,.92);color:#0a0c12;border-color:transparent}
+.mst-btn:not(.active){background:rgba(10,12,18,.72);color:rgba(255,255,255,.72)}
 
 #export-panel{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
 #export-panel.open{opacity:1;pointer-events:all}
@@ -182,6 +186,10 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
     <div id="map-wrap">
       <div id="map"></div>
       <div class="map-hint" id="map-hint">📍 Haz clic para colocar la parada</div>
+      <div class="map-style-toggle">
+        <button class="mst-btn active" data-mode="streets" onclick="setMapMode('streets')">Mapa</button>
+        <button class="mst-btn" data-mode="satellite" onclick="setMapMode('satellite')">Satélite</button>
+      </div>
     </div>
   </div>
 </div>
@@ -218,6 +226,8 @@ let editingStop=null;
 let movableStopIdx=null;
 const stopMarkers=[];
 let routeLines=[];
+let tileLayer=null;
+let satLabels=null;
 
 function getTourMeta(){
   return{
@@ -311,9 +321,21 @@ function updateTitle(){
 let tt_=null;
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');if(tt_)clearTimeout(tt_);tt_=setTimeout(()=>t.classList.remove('on'),2800)}
 
+function setMapMode(mode){
+  if(tileLayer){map.removeLayer(tileLayer);tileLayer=null}
+  if(satLabels){map.removeLayer(satLabels);satLabels=null}
+  if(mode==='satellite'){
+    tileLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri'}).addTo(map);
+    satLabels=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:.8}).addTo(map);
+  }else{
+    tileLayer=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OSM CARTO'}).addTo(map);
+  }
+  document.querySelectorAll('.mst-btn').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
+}
+
 window.addEventListener('load',()=>{
   map=L.map('map',{center:[40.416,-3.703],zoom:6,zoomControl:true,attributionControl:false});
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OSM CARTO'}).addTo(map);
+  setMapMode('streets');
   L.control.attribution({position:'bottomright',prefix:false}).addTo(map);
   map.on('click',onMapClick);
   renderDaysList();
@@ -350,6 +372,14 @@ function toggleMoveStop(i){
   renderMarkers();
   renderStopsList();
   if(movableStopIdx===i)toast('🔓 Arrastra el marcador para moverlo');
+}
+function clearStopAddress(i){
+  stops[i].address='';
+  renderStopsList();
+  renderMarkers();
+}
+function wikiLabel(url){
+  try{return decodeURIComponent((url||'').replace('https://es.wikipedia.org/wiki/','').replace(/_/g,' '))}catch{return url||''}
 }
 
 function genId(){return 's'+Date.now()+Math.random().toString(36).slice(2,6)}
@@ -429,7 +459,8 @@ function getStopFromForm(idx){
   stops[idx].dur=document.getElementById(pfx+'dur')?.value||stops[idx].dur;
   stops[idx].stayMin=parseInt(document.getElementById(pfx+'stay')?.value)||stops[idx].stayMin;
   stops[idx].desc=document.getElementById(pfx+'desc')?.value||'';
-  stops[idx].wiki=document.getElementById(pfx+'wiki')?.value||'';
+  const wikiEl=document.getElementById(pfx+'wiki');
+  if(wikiEl)stops[idx].wiki=wikiEl.value;
   const latV=parseFloat(document.getElementById(pfx+'lat')?.value);
   const lngV=parseFloat(document.getElementById(pfx+'lng')?.value);
   if(!isNaN(latV))stops[idx].lat=latV;
@@ -476,63 +507,42 @@ function renderStopsList(){
           </div>
         </div>
         <div class="stop-body${isOpen?' open':''}" id="sbody_${i}">
-          <div class="stop-map-hint">${hasCoords?(s.address?`📍 ${esc(s.address)}`:`📍 ${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}`):'⚠ Sin ubicación conocida'}</div>
+          <div class="stop-map-hint">${hasCoords?(s.address?`📍 ${esc(s.address)}`:`📍 ${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}`):'⚠ Sin ubicación'}</div>
           <div class="geo-search">
-            <input type="text" id="s${i}_geo" placeholder="🔍 Buscar dirección o lugar (ej. Panteón de Roma)" oninput="scheduleGeoSearch(${i})">
+            <input type="text" id="s${i}_geo" placeholder="🔍 Buscar lugar (ej. Museo del Prado)" oninput="scheduleGeoSearch(${i})">
             <div class="geo-results" id="georesults_${i}"></div>
           </div>
-          <button class="drop-pin-btn${placingStopIdx===i?' waiting':''}" onclick="startPlacing(${i})">
-            ${placingStopIdx===i?'⏳ Haz clic en el mapa…':'📍 Colocar en el mapa'}
-          </button>
-          ${hasCoords?`<button class="drop-pin-btn${movableStopIdx===i?' waiting':''}" onclick="toggleMoveStop(${i})">
-            ${movableStopIdx===i?'🔓 Arrastra el marcador en el mapa…':'🔓 Mover marcador en el mapa'}
-          </button>`:''}
-          <div class="field" style="margin-top:10px">
-            <label>Nombre</label>
+          ${!hasCoords?`<button class="drop-pin-btn${placingStopIdx===i?' waiting':''}" onclick="startPlacing(${i})">${placingStopIdx===i?'⏳ Haz clic en el mapa…':'📍 Colocar en el mapa manualmente'}</button>`:''}
+          ${hasCoords&&!s.address?`<button class="drop-pin-btn${movableStopIdx===i?' waiting':''}" onclick="toggleMoveStop(${i})">${movableStopIdx===i?'🔓 Arrastrando…':'🔓 Mover marcador en el mapa'}</button>`:''}
+          ${hasCoords&&s.address?`<button class="drop-pin-btn" style="font-size:8px;opacity:.45" onclick="clearStopAddress(${i})">📌 Cambiar ubicación manualmente</button>`:''}
+          <div class="field" style="margin-top:8px">
+            <label>Nombre de la parada</label>
             <input type="text" id="s${i}_name" value="${esc(s.name)}" oninput="stops[${i}].name=this.value;updatePreviewName(${i},this.value)">
           </div>
-          ${days.length>1?`<div class="field">
-            <label>Día</label>
-            <select id="s${i}_day" onchange="changeStopDay(${i},this.value)">
-              ${days.map((d,ddi)=>`<option value="${ddi+1}" ${s.day===ddi+1?'selected':''}>Día ${ddi+1}${d.date?' · '+fmtDateShort(d.date):''}</option>`).join('')}
-            </select>
-          </div>`:''}
+          ${days.length>1?`<div class="field"><label>Día</label><select id="s${i}_day" onchange="changeStopDay(${i},this.value)">${days.map((d,ddi)=>`<option value="${ddi+1}" ${s.day===ddi+1?'selected':''}>Día ${ddi+1}${d.date?' · '+fmtDateShort(d.date):''}</option>`).join('')}</select></div>`:''}
           <div class="field-row">
-            <div class="field">
-              <label>Duración</label>
-              <input type="text" id="s${i}_dur" value="${esc(s.dur)}" placeholder="30 min · gratis" oninput="stops[${i}].dur=this.value">
-            </div>
-            <div class="field" style="max-width:80px">
-              <label>Min estancia</label>
-              <input type="text" id="s${i}_stay" value="${s.stayMin}" oninput="stops[${i}].stayMin=parseInt(this.value)||30;recalcTimes();updateTimePreviews()">
-            </div>
+            <div class="field"><label>Duración / costo</label><input type="text" id="s${i}_dur" value="${esc(s.dur)}" placeholder="30 min · gratis" oninput="stops[${i}].dur=this.value"></div>
+            <div class="field" style="max-width:70px"><label>Min</label><input type="number" id="s${i}_stay" value="${s.stayMin}" min="5" step="5" oninput="stops[${i}].stayMin=parseInt(this.value)||30;recalcTimes();updateTimePreviews()"></div>
           </div>
           <div class="field">
             <label>Descripción</label>
-            <textarea id="s${i}_desc" rows="3" placeholder="Descripción de la parada…" style="resize:vertical" oninput="stops[${i}].desc=this.value">${esc(s.desc)}</textarea>
+            <textarea id="s${i}_desc" rows="2" placeholder="Descripción breve…" style="resize:vertical" oninput="stops[${i}].desc=this.value">${esc(s.desc)}</textarea>
           </div>
           <div class="field">
             <label>Wikipedia</label>
-            <div class="geo-search">
-              <input type="text" id="s${i}_wiki" value="${esc(s.wiki)}" placeholder="https://es.wikipedia.org/wiki/…" oninput="stops[${i}].wiki=this.value">
-              <div class="geo-results" id="wikiresults_${i}"></div>
+            ${s.wiki?`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><a href="${esc(s.wiki)}" target="_blank" style="flex:1;font-size:11px;color:var(--b);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(wikiLabel(s.wiki))}</a><button class="stop-act" title="Quitar enlace" onclick="stops[${i}].wiki='';renderStopsList()">✕</button></div>`:`<div class="geo-search"><div class="geo-results" id="wikiresults_${i}"></div></div><input type="text" id="s${i}_wiki" placeholder="O pegar enlace Wikipedia…" style="margin-top:4px;font-size:11px" oninput="stops[${i}].wiki=this.value.trim();if(stops[${i}].wiki)renderStopsList()"><button class="drop-pin-btn" type="button" onclick="searchWikipedia(${i})" style="margin-top:4px">🔎 Buscar en Wikipedia</button>`}
+          </div>
+          <div>
+            <label>Etiquetas</label>
+            <div class="tags-wrap" id="tags_${i}"></div>
+            <div class="add-tag-row">
+              <input type="text" id="tag_input_${i}" placeholder="Museo, Gratis…" onkeydown="if(event.key==='Enter')addTag(${i})">
+              <button onclick="addTag(${i})">+</button>
             </div>
-            <button class="drop-pin-btn" type="button" onclick="searchWikipedia(${i})">🔎 Buscar en Wikipedia por nombre</button>
           </div>
-          <div class="coords-row">
-            <input type="text" id="s${i}_lat" placeholder="Lat" value="${s.lat??''}" oninput="updateLatLng(${i})">
-            <input type="text" id="s${i}_lng" placeholder="Lng" value="${s.lng??''}" oninput="updateLatLng(${i})">
-          </div>
-          <label>Etiquetas</label>
-          <div class="tags-wrap" id="tags_${i}"></div>
-          <div class="add-tag-row">
-            <input type="text" id="tag_input_${i}" placeholder="Gratis, Museo…" onkeydown="if(event.key==='Enter')addTag(${i})">
-            <select id="tag_color_${i}">
-              <option value="">Normal</option>
-              <option value="g">Verde</option>
-              <option value="b">Azul</option>
-            </select>
-            <button onclick="addTag(${i})">+</button>
+          <div class="coords-row" style="margin-top:6px;opacity:.3" title="Coordenadas GPS">
+            <input type="text" id="s${i}_lat" placeholder="Lat" value="${s.lat??''}" oninput="updateLatLng(${i})" style="font-size:9px;padding:4px 6px">
+            <input type="text" id="s${i}_lng" placeholder="Lng" value="${s.lng??''}" oninput="updateLatLng(${i})" style="font-size:9px;padding:4px 6px">
           </div>
         </div>`;
       el.appendChild(div);
@@ -575,14 +585,10 @@ function pickGeoResult(i,gi){
   stops[i].lng=parseFloat(parseFloat(r.lon).toFixed(6));
   stops[i].address=r.display_name;
   if(!stops[i].name||stops[i].name==='Parada')stops[i].name=(r.display_name||'').split(',')[0];
-  const box=document.getElementById('georesults_'+i);
-  if(box){box.classList.remove('on');box.innerHTML=''}
-  const geoInput=document.getElementById('s'+i+'_geo');
-  if(geoInput)geoInput.value='';
-  renderStopsList();
   renderMarkers();
   updateRoute();
   setActiveStop(i);
+  if(!stops[i].wiki)searchWikipedia(i);
 }
 
 let wikiSearchCache={};
@@ -606,12 +612,8 @@ function searchWikipedia(i){
 function pickWikiResult(i,gi){
   const r=wikiSearchCache[i]?.[gi];
   if(!r)return;
-  const url='https://es.wikipedia.org/wiki/'+encodeURIComponent(r.title.replace(/ /g,'_'));
-  stops[i].wiki=url;
-  const input=document.getElementById('s'+i+'_wiki');
-  if(input)input.value=url;
-  const box=document.getElementById('wikiresults_'+i);
-  if(box){box.classList.remove('on');box.innerHTML=''}
+  stops[i].wiki='https://es.wikipedia.org/wiki/'+encodeURIComponent(r.title.replace(/ /g,'_'));
+  setActiveStop(i);
 }
 
 let dayOrigSearchTimers={};
@@ -662,8 +664,10 @@ function reverseGeocode(i){
       if(!stops[i]||stops[i].lat!==s.lat||stops[i].lng!==s.lng)return;
       if(data&&data.display_name){
         stops[i].address=data.display_name;
+        if(!stops[i].name||stops[i].name==='Parada')stops[i].name=data.display_name.split(',')[0].trim();
         const hint=document.querySelector('#sbody_'+i+' .stop-map-hint');
         if(hint)hint.textContent=`📍 ${data.display_name}`;
+        if(editingStop===i&&!stops[i].wiki)searchWikipedia(i);
       }
     })
     .catch(()=>{});
@@ -833,7 +837,7 @@ function copyLink(){
 }
 
 function confirmBack(){
-  if(stops.length&&!confirm('¿Salir sin guardar? Los cambios se perderán si no guardas.'))return;
+  if(stops.length&&document.getElementById('t-city').value.trim())save();
   location.href='index.html';
 }
 </script>
