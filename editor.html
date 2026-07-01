@@ -76,14 +76,9 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
 .stop-map-hint{font-family:var(--mo);font-size:9px;color:rgba(91,184,245,.6);margin-bottom:8px;margin-top:8px;padding:6px 8px;background:rgba(91,184,245,.06);border-radius:6px;border:1px solid rgba(91,184,245,.15)}
 .coords-row{display:flex;gap:6px;margin-bottom:8px}
 .coords-row input{font-family:var(--mo);font-size:11px}
-.tags-wrap{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
-.tag-chip{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:3px 8px;font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.6)}
-.tag-chip .del-tag{background:none;border:none;color:rgba(255,255,255,.3);cursor:pointer;font-size:12px;padding:0;line-height:1}
-.tag-chip .del-tag:hover{color:var(--r)}
-.add-tag-row{display:flex;gap:6px}
-.add-tag-row input{flex:1;font-size:11px;padding:6px 8px}
-.add-tag-row select{width:80px;font-size:11px;padding:6px 4px}
-.add-tag-row button{background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:7px;color:#e8e6df;font-size:13px;cursor:pointer;padding:6px 10px}
+.wiki-chip{display:flex;align-items:center;gap:6px;margin-top:6px;padding:5px 8px;background:rgba(91,184,245,.05);border:1px solid rgba(91,184,245,.15);border-radius:6px}
+.wiki-chip a{flex:1;font-size:11px;color:var(--b);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none}
+.wiki-chip a:hover{text-decoration:underline}
 .drop-pin-btn{width:100%;padding:8px;border-radius:7px;border:1px dashed rgba(91,184,245,.3);background:rgba(91,184,245,.05);color:var(--b);font-family:var(--mo);font-size:9px;cursor:pointer;margin-top:4px;transition:all .15s}
 .drop-pin-btn:hover{background:rgba(91,184,245,.1)}
 .drop-pin-btn.waiting{border-style:solid;background:rgba(91,184,245,.12);animation:pulse .8s ease-in-out infinite alternate}
@@ -133,35 +128,23 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
 
 <div id="app">
   <header>
-    <button class="back-btn" onclick="confirmBack()">← Volver</button>
+    <button class="back-btn" onclick="confirmBack()">← Inicio</button>
     <div id="hd-title">Nuevo tour</div>
     <button class="hbtn hbtn-g" id="preview-btn" onclick="preview()" style="display:none">👁 Ver</button>
-    <button class="hbtn hbtn-r" onclick="openExport()">⬇ Exportar</button>
-    <button class="hbtn hbtn-p" onclick="save()">💾 Guardar</button>
+    <button class="hbtn hbtn-p" onclick="save()">Guardar</button>
   </header>
   <div id="main">
     <div id="sidebar">
       <div id="sidebar-scroll">
         <div class="meta-section">
-          <h3>Información del tour</h3>
           <div class="field-row">
-            <div class="field" style="max-width:60px">
-              <label>Emoji</label>
-              <input type="text" id="t-emoji" value="📍" maxlength="4" style="text-align:center;font-size:20px;padding:4px">
+            <div class="field" style="flex:2">
+              <label>Ciudad</label>
+              <input type="text" id="t-city" placeholder="Madrid" oninput="updateTitle()">
             </div>
             <div class="field" style="flex:1">
-              <label>Ciudad / Nombre</label>
-              <input type="text" id="t-city" placeholder="Ej: Madrid" oninput="updateTitle()">
-            </div>
-          </div>
-          <div class="field-row">
-            <div class="field">
               <label>País</label>
               <input type="text" id="t-country" placeholder="España">
-            </div>
-            <div class="field">
-              <label>Duración total</label>
-              <input type="text" id="t-duration" placeholder="5h">
             </div>
           </div>
         </div>
@@ -230,12 +213,13 @@ let tileLayer=null;
 let satLabels=null;
 
 function getTourMeta(){
+  const dur=days.length===1?'1 día':`${days.length} días`;
   return{
     id:EDIT_ID||('tour_'+Date.now()),
     city:document.getElementById('t-city').value.trim()||'Mi Tour',
     country:document.getElementById('t-country').value.trim(),
-    emoji:document.getElementById('t-emoji').value.trim()||'📍',
-    duration:document.getElementById('t-duration').value.trim()||'?h',
+    emoji:'📍',
+    duration:dur,
     startTime:days[0]?.start||'09:00',
   };
 }
@@ -262,7 +246,7 @@ function renderDaysList(){
     <div class="day-card">
       <div class="day-row">
         <div class="field" style="flex:1.4">
-          <label>Día ${i+1} — Fecha</label>
+          <label>Día ${i+1}</label>
           <input type="date" value="${d.date||''}" onchange="setDayDate(${i},this.value)">
         </div>
         <div class="field" style="max-width:90px">
@@ -271,18 +255,16 @@ function renderDaysList(){
         </div>
         ${days.length>1?`<button class="stop-act" title="Eliminar día" onclick="removeDay(${i})">🗑</button>`:''}
       </div>
-      <div class="field" style="margin-top:4px">
-        <label>🏨 ¿Cuál es el punto de partida del Día ${i+1}?</label>
-        ${i>0?`<label style="display:flex;align-items:center;gap:6px;margin:2px 0 8px;cursor:pointer;font-family:var(--mo);font-size:10px;color:rgba(255,255,255,.6);text-transform:none;letter-spacing:0">
-          <input type="checkbox" style="width:auto" ${sameAsFirst?'checked':''} onchange="setDaySameAsFirst(${i},this.checked)">
-          Usar el mismo punto de partida que el Día 1
-        </label>`:''}
-        ${!sameAsFirst?`<div class="geo-search">
-          <input type="text" id="d${i}_geo" placeholder="🔍 Buscar hotel, dirección o lugar de salida" oninput="scheduleDayOriginSearch(${i})">
-          <div class="geo-results" id="dayorigresults_${i}"></div>
-        </div>`:''}
-        ${effOrigin?`<div class="stop-map-hint">🏨 ${esc(effOrigin.address)} ${sameAsFirst?'<span style="opacity:.5">(Día 1)</span>':`<span style="cursor:pointer;color:var(--r)" onclick="clearDayOrigin(${i})">✕ quitar</span>`}</div>`:(sameAsFirst?`<div class="day-empty">El Día 1 aún no tiene punto de partida definido</div>`:'')}
-      </div>
+      ${i>0?`<label style="display:flex;align-items:center;gap:6px;margin:0 0 6px;cursor:pointer;font-family:var(--mo);font-size:10px;color:rgba(255,255,255,.5);text-transform:none;letter-spacing:0">
+        <input type="checkbox" style="width:auto" ${sameAsFirst?'checked':''} onchange="setDaySameAsFirst(${i},this.checked)">
+        Mismo punto de partida que Día 1
+      </label>`:''}
+      ${!sameAsFirst?`<div class="geo-search">
+        <input type="text" id="d${i}_geo" placeholder="🏨 Punto de partida (hotel, estación...)" oninput="scheduleDayOriginSearch(${i})" style="font-size:12px">
+        <div class="geo-results" id="dayorigresults_${i}"></div>
+      </div>`:''}
+      ${effOrigin?`<div class="stop-map-hint">🏨 ${esc(effOrigin.address)}${!sameAsFirst?` <span style="cursor:pointer;color:var(--r);margin-left:4px" onclick="clearDayOrigin(${i})">✕</span>`:''}</div>`:
+        (sameAsFirst&&!days[0].origin?`<div class="day-empty" style="font-size:9px">Añade punto de partida en el Día 1</div>`:'')}
     </div>`;
   }).join('');
 }
@@ -304,8 +286,6 @@ function addDay(){
 }
 function removeDay(i){
   const dayNum=i+1;
-  const affected=stops.filter(s=>s.day===dayNum).length;
-  if(affected&&!confirm(`Día ${dayNum} tiene ${affected} parada(s). Se eliminarán también. ¿Continuar?`))return;
   stops=stops.filter(s=>s.day!==dayNum);
   stops.forEach(s=>{if(s.day>dayNum)s.day--});
   days.splice(i,1);
@@ -388,7 +368,7 @@ function defaultStop(dayNum){
   const startTime=day?.start||'09:00';
   let[h,m]=startTime.split(':').map(Number);
   stops.filter(s=>s.day===dayNum).forEach(s=>{m+=s.stayMin+10;h+=Math.floor(m/60);m%=60});
-  return{_id:genId(),day:dayNum,name:'Parada',time:`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`,dur:'30 min · gratis',stayMin:30,desc:'',lat:null,lng:null,address:'',tags:[],wiki:''};
+  return{_id:genId(),day:dayNum,name:'Parada',time:`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`,manualTime:false,dur:'30 min · gratis',stayMin:30,desc:'',lat:null,lng:null,address:'',tags:[],wiki:''};
 }
 
 function addStop(dayNum){
@@ -438,13 +418,30 @@ function recalcTimes(){
     if(!dayStops.length)return;
     let[h,m]=(day.start||'09:00').split(':').map(Number);
     dayStops.forEach(s=>{
-      s.time=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      if(s.manualTime){
+        [h,m]=s.time.split(':').map(Number);
+      }else{
+        s.time=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      }
       m+=s.stayMin+10;h+=Math.floor(m/60);m%=60;
     });
   });
 }
 
 function recalcAllTimes(){recalcTimes();renderStopsList()}
+
+function setStopTime(i,val){
+  if(!val)return;
+  stops[i].time=val;
+  stops[i].manualTime=true;
+  recalcTimes();
+  updateTimePreviews();
+}
+function clearStopManualTime(i){
+  stops[i].manualTime=false;
+  recalcTimes();
+  renderStopsList();
+}
 
 function setActiveStop(idx){
   editingStop=idx;
@@ -456,15 +453,9 @@ function setActiveStop(idx){
 function getStopFromForm(idx){
   const pfx='s'+idx+'_';
   stops[idx].name=document.getElementById(pfx+'name')?.value||stops[idx].name;
-  stops[idx].dur=document.getElementById(pfx+'dur')?.value||stops[idx].dur;
   stops[idx].stayMin=parseInt(document.getElementById(pfx+'stay')?.value)||stops[idx].stayMin;
-  stops[idx].desc=document.getElementById(pfx+'desc')?.value||'';
-  const wikiEl=document.getElementById(pfx+'wiki');
-  if(wikiEl)stops[idx].wiki=wikiEl.value;
-  const latV=parseFloat(document.getElementById(pfx+'lat')?.value);
-  const lngV=parseFloat(document.getElementById(pfx+'lng')?.value);
-  if(!isNaN(latV))stops[idx].lat=latV;
-  if(!isNaN(lngV))stops[idx].lng=lngV;
+  const timeEl=document.getElementById(pfx+'time');
+  if(timeEl&&timeEl.value)stops[idx].time=timeEl.value;
 }
 
 function syncAllForms(){stops.forEach((_,i)=>getStopFromForm(i))}
@@ -516,42 +507,30 @@ function renderStopsList(){
           ${hasCoords&&!s.address?`<button class="drop-pin-btn${movableStopIdx===i?' waiting':''}" onclick="toggleMoveStop(${i})">${movableStopIdx===i?'🔓 Arrastrando…':'🔓 Mover marcador en el mapa'}</button>`:''}
           ${hasCoords&&s.address?`<button class="drop-pin-btn" style="font-size:8px;opacity:.45" onclick="clearStopAddress(${i})">📌 Cambiar ubicación manualmente</button>`:''}
           <div class="field" style="margin-top:8px">
-            <label>Nombre de la parada</label>
-            <input type="text" id="s${i}_name" value="${esc(s.name)}" oninput="stops[${i}].name=this.value;updatePreviewName(${i},this.value)">
+            <input type="text" id="s${i}_name" value="${esc(s.name)}" placeholder="Nombre de la parada" oninput="stops[${i}].name=this.value;updatePreviewName(${i},this.value)" style="font-weight:600">
           </div>
-          ${days.length>1?`<div class="field"><label>Día</label><select id="s${i}_day" onchange="changeStopDay(${i},this.value)">${days.map((d,ddi)=>`<option value="${ddi+1}" ${s.day===ddi+1?'selected':''}>Día ${ddi+1}${d.date?' · '+fmtDateShort(d.date):''}</option>`).join('')}</select></div>`:''}
-          <div class="field-row">
-            <div class="field"><label>Duración / costo</label><input type="text" id="s${i}_dur" value="${esc(s.dur)}" placeholder="30 min · gratis" oninput="stops[${i}].dur=this.value"></div>
-            <div class="field" style="max-width:70px"><label>Min</label><input type="number" id="s${i}_stay" value="${s.stayMin}" min="5" step="5" oninput="stops[${i}].stayMin=parseInt(this.value)||30;recalcTimes();updateTimePreviews()"></div>
-          </div>
-          <div class="field">
-            <label>Descripción</label>
-            <textarea id="s${i}_desc" rows="2" placeholder="Descripción breve…" style="resize:vertical" oninput="stops[${i}].desc=this.value">${esc(s.desc)}</textarea>
-          </div>
-          <div class="field">
-            <label>Wikipedia</label>
-            ${s.wiki?`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><a href="${esc(s.wiki)}" target="_blank" style="flex:1;font-size:11px;color:var(--b);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(wikiLabel(s.wiki))}</a><button class="stop-act" title="Quitar enlace" onclick="stops[${i}].wiki='';renderStopsList()">✕</button></div>`:`<div class="geo-search"><div class="geo-results" id="wikiresults_${i}"></div></div><input type="text" id="s${i}_wiki" placeholder="O pegar enlace Wikipedia…" style="margin-top:4px;font-size:11px" oninput="stops[${i}].wiki=this.value.trim();if(stops[${i}].wiki)renderStopsList()"><button class="drop-pin-btn" type="button" onclick="searchWikipedia(${i})" style="margin-top:4px">🔎 Buscar en Wikipedia</button>`}
-          </div>
-          <div>
-            <label>Etiquetas</label>
-            <div class="tags-wrap" id="tags_${i}"></div>
-            <div class="add-tag-row">
-              <input type="text" id="tag_input_${i}" placeholder="Museo, Gratis…" onkeydown="if(event.key==='Enter')addTag(${i})">
-              <button onclick="addTag(${i})">+</button>
+          ${days.length>1?`<div class="field"><select id="s${i}_day" onchange="changeStopDay(${i},this.value)" style="font-size:11px">${days.map((d,ddi)=>`<option value="${ddi+1}" ${s.day===ddi+1?'selected':''}>Día ${ddi+1}${d.date?' · '+fmtDateShort(d.date):''}</option>`).join('')}</select></div>`:''}
+          <div class="field-row" style="align-items:flex-end;margin-top:4px">
+            <div class="field">
+              <div style="display:flex;align-items:center;gap:4px">
+                <input type="time" id="s${i}_time" value="${s.time}" oninput="setStopTime(${i},this.value)" title="Hora inicio" style="flex:1${s.manualTime?';border-color:#f5a623':';opacity:.6'}">
+                ${s.manualTime?`<button class="stop-act" title="Restablecer automático" onclick="clearStopManualTime(${i})" style="font-size:13px;padding:4px 6px;opacity:.7">↺</button>`:''}
+              </div>
+            </div>
+            <div class="field" style="max-width:75px">
+              <input type="number" id="s${i}_stay" value="${s.stayMin}" min="5" step="5" title="Minutos de visita" oninput="stops[${i}].stayMin=parseInt(this.value)||30;recalcTimes();updateTimePreviews()" style="text-align:center">
+              <div style="font-family:var(--mo);font-size:8px;color:rgba(255,255,255,.25);text-align:center;margin-top:2px">min visita</div>
             </div>
           </div>
-          <div class="coords-row" style="margin-top:6px;opacity:.3" title="Coordenadas GPS">
-            <input type="text" id="s${i}_lat" placeholder="Lat" value="${s.lat??''}" oninput="updateLatLng(${i})" style="font-size:9px;padding:4px 6px">
-            <input type="text" id="s${i}_lng" placeholder="Lng" value="${s.lng??''}" oninput="updateLatLng(${i})" style="font-size:9px;padding:4px 6px">
-          </div>
+          ${s.wiki?`<div class="wiki-chip"><a href="${esc(s.wiki)}" target="_blank">📖 ${esc(wikiLabel(s.wiki))}</a><button class="stop-act" title="Quitar" onclick="stops[${i}].wiki='';renderStopsList()" style="opacity:.4;font-size:12px">✕</button></div>`:`<div class="geo-results" id="wikiresults_${i}"></div>`}
         </div>`;
       el.appendChild(div);
-      renderTags(i);
     });
   });
 }
 
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function decodePolyline6(str){let i=0,lat=0,lng=0,r=[];while(i<str.length){let b,s=0,v=0;do{b=str.charCodeAt(i++)-63;v|=(b&0x1f)<<s;s+=5}while(b>=0x20);lat+=(v&1)?~(v>>1):(v>>1);s=0;v=0;do{b=str.charCodeAt(i++)-63;v|=(b&0x1f)<<s;s+=5}while(b>=0x20);lng+=(v&1)?~(v>>1):(v>>1);r.push([lat/1e6,lng/1e6])}return r}
 
 let geoSearchTimers={};
 let geoReverseTimers={};
@@ -685,8 +664,13 @@ function updatePreviewName(i,v){
 function updateTimePreviews(){
   document.querySelectorAll('.stop-card').forEach(card=>{
     const i=parseInt(card.dataset.idx);
+    if(!stops[i])return;
     const el=card.querySelector('.stop-time-preview');
-    if(el&&stops[i])el.textContent=stops[i].time;
+    if(el)el.textContent=stops[i].time;
+    if(!stops[i].manualTime){
+      const ti=document.getElementById('s'+i+'_time');
+      if(ti)ti.value=stops[i].time;
+    }
   });
 }
 
@@ -702,23 +686,6 @@ function updateLatLng(i){
   }
 }
 
-function renderTags(i){
-  const wrap=document.getElementById('tags_'+i);if(!wrap)return;
-  wrap.innerHTML=(stops[i].tags||[]).map((t,ti)=>`
-    <div class="tag-chip">
-      <span style="${t.c==='g'?'color:var(--g)':t.c==='b'?'color:var(--b)':''}">${esc(t.t)}</span>
-      <button class="del-tag" onclick="removeTag(${i},${ti})">x</button>
-    </div>`).join('');
-}
-function addTag(i){
-  const inp=document.getElementById('tag_input_'+i);
-  const col=document.getElementById('tag_color_'+i);
-  const v=inp?.value.trim();if(!v)return;
-  stops[i].tags=stops[i].tags||[];
-  stops[i].tags.push({t:v,c:col?.value||''});
-  inp.value='';renderTags(i);
-}
-function removeTag(i,ti){stops[i].tags.splice(ti,1);renderTags(i)}
 
 function renderMarkers(){
   stopMarkers.forEach(m=>map.removeLayer(m));stopMarkers.length=0;
@@ -755,14 +722,17 @@ async function drawDayRoute(dn,multiDay){
   const dashed=L.polyline(lls,{color,weight:2.5,opacity:.6,dashArray:'6 4'}).addTo(map);
   routeLines.push(dashed);
   try{
-    const coords=placed.map(s=>`${s.lng},${s.lat}`).join(';');
-    const r=await fetch(`https://router.project-osrm.org/route/v1/foot/${coords}?overview=full&geometries=geojson&alternatives=false&continue_straight=false`,{signal:AbortSignal.timeout(8000)});
+    const r=await fetch('https://valhalla.routing.openstreetmap.de/route',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({locations:placed.map(s=>({lon:s.lng,lat:s.lat,type:'break'})),costing:'pedestrian',units:'km'}),
+      signal:AbortSignal.timeout(10000)
+    });
     const d=await r.json();
-    if(d.code==='Ok'&&d.routes?.length){
-      map.removeLayer(dashed);
-      routeLines=routeLines.filter(l=>l!==dashed);
-      const real=d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
-      routeLines.push(L.polyline(real,{color,weight:3,opacity:.85}).addTo(map));
+    if(d.trip?.legs?.length){
+      map.removeLayer(dashed);routeLines=routeLines.filter(l=>l!==dashed);
+      const pts=[];
+      d.trip.legs.forEach((leg,i)=>{const seg=decodePolyline6(leg.shape);if(i>0)seg.shift();pts.push(...seg)});
+      routeLines.push(L.polyline(pts,{color,weight:3,opacity:.85}).addTo(map));
     }
   }catch(e){}
 }
@@ -777,7 +747,7 @@ function loadExisting(){
   updateTitle();
   days=(data.days&&data.days.length)?data.days.map(d=>({date:d.date||'',start:d.start||'09:00',origin:d.origin||null,sameAsFirst:!!d.sameAsFirst})):[{date:'',start:data.startTime||'09:00',origin:null}];
   renderDaysList();
-  stops=(data.stops||[]).map((s,i)=>({...s,_id:s._id||genId(),day:s.day||1}));
+  stops=(data.stops||[]).map((s,i)=>({...s,_id:s._id||genId(),day:s.day||1,manualTime:!!s.manualTime}));
   renderStopsList();
   renderMarkers();
   updateRoute();
