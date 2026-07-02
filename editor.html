@@ -116,6 +116,11 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
 .ep-btn-p{background:var(--b);color:#0a0c12}
 .ep-btn-g{background:rgba(255,255,255,.07);color:rgba(255,255,255,.7);border:1px solid var(--border)}
 .ep-btn-s{background:rgba(94,221,138,.12);color:var(--g);border:1px solid rgba(94,221,138,.2)}
+#share-panel{position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
+#share-panel.open{opacity:1;pointer-events:all}
+#share-panel .ep-box{max-height:85vh;overflow-y:auto}
+#qr-wrap{display:flex;justify-content:center;padding:10px 0 4px}
+#qr-wrap img{border-radius:10px;max-width:184px}
 
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);z-index:9999;
   background:rgba(20,26,44,.98);color:#fff;font-family:var(--mo);font-size:10px;
@@ -184,8 +189,22 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
     <div class="ep-s">Descarga el tour como archivo JSON para importarlo en otro dispositivo, o comparte el enlace directo.</div>
     <div class="ep-btns">
       <button class="ep-btn ep-btn-g" onclick="closeExport()">Cancelar</button>
-      <button class="ep-btn ep-btn-s" onclick="copyLink()">🔗 Copiar link</button>
+      <button class="ep-btn ep-btn-s" onclick="openSharePanel()">📤 Compartir</button>
       <button class="ep-btn ep-btn-p" onclick="downloadJSON()">⬇ Descargar JSON</button>
+    </div>
+  </div>
+</div>
+
+<div id="share-panel" onclick="closeSharePanel()">
+  <div class="ep-box" onclick="event.stopPropagation()">
+    <div class="ep-handle"></div>
+    <div class="ep-t">📤 Compartir tour</div>
+    <div class="ep-s">Escanea el QR o copia el link. Cualquier participante puede verlo en su móvil sin instalar nada.</div>
+    <div id="qr-wrap"></div>
+    <div id="share-url-txt" style="font-family:var(--mo);font-size:8px;color:rgba(255,255,255,.25);word-break:break-all;margin-bottom:14px;max-height:38px;overflow:hidden"></div>
+    <div class="ep-btns">
+      <button class="ep-btn ep-btn-g" onclick="closeSharePanel()">Cerrar</button>
+      <button class="ep-btn ep-btn-s" id="copy-share-btn" onclick="copyShareLink()">🔗 Copiar link</button>
     </div>
   </div>
 </div>
@@ -522,7 +541,7 @@ function renderStopsList(){
               <div style="font-family:var(--mo);font-size:8px;color:rgba(255,255,255,.25);text-align:center;margin-top:2px">min visita</div>
             </div>
           </div>
-          ${s.wiki?`<div class="wiki-chip"><a href="${esc(s.wiki)}" target="_blank">📖 ${esc(wikiLabel(s.wiki))}</a><button class="stop-act" title="Quitar" onclick="stops[${i}].wiki='';renderStopsList()" style="opacity:.4;font-size:12px">✕</button></div>`:`<div class="geo-results" id="wikiresults_${i}"></div>`}
+          <div style="margin-top:6px">${s.wiki?`<div class="wiki-chip"><a href="${esc(s.wiki)}" target="_blank">📖 ${esc(wikiLabel(s.wiki))}</a><button class="stop-act" title="Quitar" onclick="stops[${i}].wiki='';renderStopsList();searchWikipedia(${i})" style="opacity:.4;font-size:12px">✕</button></div>`:`<div style="font-family:var(--mo);font-size:8px;color:rgba(255,255,255,.3);margin-bottom:3px">📖 Wikipedia</div><div class="geo-results" id="wikiresults_${i}" style="position:static;box-shadow:none"></div>`}</div>
         </div>`;
       el.appendChild(div);
     });
@@ -653,7 +672,7 @@ function reverseGeocode(i){
 }
 
 function toggleStop(i){
-  if(editingStop===i){editingStop=null;renderStopsList()}
+  if(editingStop===i){editingStop=null;renderStopsList();save(true)}
   else setActiveStop(i);
 }
 
@@ -762,9 +781,9 @@ function buildTourData(){
   };
 }
 
-function save(){
-  if(!document.getElementById('t-city').value.trim()){toast('⚠ Añade el nombre de la ciudad');return}
-  if(!stops.length){toast('⚠ Añade al menos una parada');return}
+function save(silent=false){
+  if(!document.getElementById('t-city').value.trim()){if(!silent)toast('⚠ Añade el nombre de la ciudad');return}
+  if(!stops.length){if(!silent)toast('⚠ Añade al menos una parada');return}
   const data=buildTourData();
   const idx=LS.get('tours_index',{});
   idx[data.id]={id:data.id,city:data.city,country:data.country,emoji:data.emoji,
@@ -772,8 +791,7 @@ function save(){
     days:days.length,dateStart:days[0]?.date||'',dateEnd:days[days.length-1]?.date||''};
   LS.set('tours_index',idx);
   LS.set('tour_data_'+data.id,data);
-  toast('✓ Tour guardado');
-  document.getElementById('preview-btn').style.display='';
+  if(!silent){toast('✓ Tour guardado');document.getElementById('preview-btn').style.display='';}
 }
 
 function preview(){
@@ -792,12 +810,58 @@ function downloadJSON(){
   toast('✓ Descargado');closeExport();
 }
 
-function copyLink(){
-  save();
+let _shareUrl='';
+
+async function toShareUrl(data){
+  const json=JSON.stringify(data);
+  const blob=new Blob([json]);
+  const cs=new CompressionStream('deflate-raw');
+  const pipe=blob.stream().pipeThrough(cs);
+  const buf=await new Response(pipe).arrayBuffer();
+  const bytes=new Uint8Array(buf);
+  let bin='';for(let i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);
+  const b64=btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  return `${location.origin}${location.pathname.replace('editor.html','tour.html')}?share=${b64}`;
+}
+
+async function openSharePanel(){
+  syncAllForms();
+  if(!document.getElementById('t-city').value.trim()){toast('⚠ Añade el nombre de la ciudad');return}
+  if(!stops.length){toast('⚠ Añade al menos una parada');return}
+  save(true);
   const data=buildTourData();
-  const url=`${location.origin}${location.pathname.replace('editor.html','tour.html')}?id=${data.id}&custom=1`;
-  navigator.clipboard?.writeText(url).then(()=>toast('✓ Link copiado')).catch(()=>toast('Link: '+url));
+  const wrap=document.getElementById('qr-wrap');
+  wrap.innerHTML='<span style="font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.3)">Generando…</span>';
+  document.getElementById('share-panel').classList.add('open');
   closeExport();
+  const url=await toShareUrl(data);
+  _shareUrl=url;
+  document.getElementById('share-url-txt').textContent=url;
+  wrap.innerHTML='';
+  try{
+    const qr=qrcode(0,'M');qr.addData(url,'Byte');qr.make();
+    wrap.innerHTML=qr.createImgTag(4,8);
+    if(wrap.querySelector('img'))wrap.querySelector('img').style.borderRadius='10px';
+  }catch{
+    // QR error type 1 = data too long → try lower correction level
+    try{const qr=qrcode(0,'L');qr.addData(url,'Byte');qr.make();
+      wrap.innerHTML=qr.createImgTag(4,8);
+      if(wrap.querySelector('img'))wrap.querySelector('img').style.borderRadius='10px';
+    }catch{wrap.innerHTML='<span style="font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.4)">Usa el botón de copiar para compartir el link</span>';}
+  }
+}
+
+function closeSharePanel(){
+  document.getElementById('share-panel').classList.remove('open');
+}
+
+function copyShareLink(){
+  if(!_shareUrl)return;
+  navigator.clipboard?.writeText(_shareUrl).then(()=>{
+    const btn=document.getElementById('copy-share-btn');
+    const orig=btn.textContent;btn.textContent='✓ Copiado';
+    setTimeout(()=>btn.textContent=orig,2000);
+  }).catch(()=>toast('Link: '+_shareUrl));
 }
 
 function confirmBack(){
@@ -805,5 +869,6 @@ function confirmBack(){
   location.href='index.html';
 }
 </script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 </body>
 </html>
