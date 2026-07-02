@@ -482,16 +482,10 @@ async function drawTourRoute(){
     try{
       let lls;
       if(m==='foot'){
-        const r=await fetch('https://valhalla.routing.openstreetmap.de/route',{
-          method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({locations:[{lon:leg.from.lng,lat:leg.from.lat,type:'break'},{lon:leg.to.lng,lat:leg.to.lat,type:'break'}],costing:'pedestrian',units:'km',costing_options:{pedestrian:{shortest:true}}}),
-          signal:AbortSignal.timeout(10000)
-        });
-        if(!r.ok)return;
+        const r=await fetch(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${leg.from.lng},${leg.from.lat};${leg.to.lng},${leg.to.lat}?overview=full&geometries=geojson&alternatives=false`,{signal:AbortSignal.timeout(10000)});
         const d=await r.json();
-        if(!d.trip?.legs?.length)return;
-        const pts=[];d.trip.legs.forEach((l,i)=>{const seg=decodePolyline6(l.shape);if(i>0)seg.shift();pts.push(...seg)});
-        lls=pts;
+        if(d.code!=='Ok'||!d.routes?.length)return;
+        lls=d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
       }else{
         const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${leg.from.lng},${leg.from.lat};${leg.to.lng},${leg.to.lat}?overview=full&geometries=geojson&alternatives=false&continue_straight=false`,{signal:AbortSignal.timeout(10000)});
         const d=await r.json();
@@ -752,12 +746,9 @@ async function getTT(fLa,fLo,tLa,tLo,mode){
   const dist=hav(fLa,fLo,tLa,tLo);
   try{
     if(mode==='foot'){
-      const r=await fetch('https://valhalla.routing.openstreetmap.de/route',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({locations:[{lon:fLo,lat:fLa,type:'break'},{lon:tLo,lat:tLa,type:'break'}],costing:'pedestrian',units:'km',costing_options:{pedestrian:{shortest:true}}}),
-        signal:AbortSignal.timeout(6000)
-      });
-      if(r.ok){const d=await r.json();if(d.trip?.summary){const res={dist:Math.round(d.trip.summary.length*1000),dur:Math.round(d.trip.summary.time)};ttCache.set(k,res);return res}}
+      const r=await fetch(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${fLo},${fLa};${tLo},${tLa}?overview=false&alternatives=false`,{signal:AbortSignal.timeout(6000)});
+      const d=await r.json();
+      if(d.code==='Ok'){const res={dist:Math.round(d.routes[0].distance),dur:Math.round(d.routes[0].duration)};ttCache.set(k,res);return res}
     }else{
       const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${fLo},${fLa};${tLo},${tLa}?overview=false&alternatives=false`,{signal:AbortSignal.timeout(6000)});
       const d=await r.json();
@@ -802,8 +793,9 @@ async function navTo(toLat,toLng,stopIdx){
   document.getElementById('nav-ins').textContent='Calculando…';document.getElementById('nav-dist').textContent='…';
   document.getElementById('nav-upcoming').innerHTML='';document.getElementById('navp').classList.add('open');
   try{
-    const p=tMode==='foot'?'foot':'driving';
-    const url=`https://router.project-osrm.org/route/v1/${p}/${myLng},${myLat};${toLng},${toLat}?steps=true&overview=full&geometries=geojson&alternatives=false&continue_straight=false`;
+    const url=tMode==='foot'
+      ?`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${myLng},${myLat};${toLng},${toLat}?steps=true&overview=full&geometries=geojson&alternatives=false`
+      :`https://router.project-osrm.org/route/v1/driving/${myLng},${myLat};${toLng},${toLat}?steps=true&overview=full&geometries=geojson&alternatives=false&continue_straight=false`;
     const res=await fetch(url,{signal:AbortSignal.timeout(9000)});
     if(!res.ok)throw new Error('HTTP '+res.status);
     const data=await res.json();if(data.code!=='Ok')throw new Error(data.code);

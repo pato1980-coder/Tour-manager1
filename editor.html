@@ -722,19 +722,13 @@ async function drawDayRoute(dn,multiDay){
   const dashed=L.polyline(lls,{color,weight:2.5,opacity:.6,dashArray:'6 4'}).addTo(map);
   routeLines.push(dashed);
   try{
-    const r=await fetch('https://valhalla.routing.openstreetmap.de/route',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({locations:placed.map(s=>({lon:s.lng,lat:s.lat,type:'break'})),costing:'pedestrian',units:'km',costing_options:{pedestrian:{shortest:true}}}),
-      signal:AbortSignal.timeout(10000)
-    });
-    if(r.ok){
-      const d=await r.json();
-      if(d.trip?.legs?.length){
-        map.removeLayer(dashed);routeLines=routeLines.filter(l=>l!==dashed);
-        const pts=[];
-        d.trip.legs.forEach((leg,i)=>{const seg=decodePolyline6(leg.shape);if(i>0)seg.shift();pts.push(...seg)});
-        routeLines.push(L.polyline(pts,{color,weight:3,opacity:.85}).addTo(map));
-      }
+    const coords=placed.map(s=>`${s.lng},${s.lat}`).join(';');
+    const r=await fetch(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${coords}?overview=full&geometries=geojson&alternatives=false`,{signal:AbortSignal.timeout(10000)});
+    const d=await r.json();
+    if(d.code==='Ok'&&d.routes?.length){
+      map.removeLayer(dashed);routeLines=routeLines.filter(l=>l!==dashed);
+      const pts=d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+      routeLines.push(L.polyline(pts,{color,weight:3,opacity:.85}).addTo(map));
     }
   }catch(e){}
 }
