@@ -539,12 +539,9 @@ async function getTT(fLa,fLo,tLa,tLo,mode){
   const dist=hav(fLa,fLo,tLa,tLo);
   try{
     if(mode==='foot'){
-      const r=await fetch('https://valhalla.routing.openstreetmap.de/route',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({locations:[{lon:fLo,lat:fLa,type:'break'},{lon:tLo,lat:tLa,type:'break'}],costing:'pedestrian',units:'km',costing_options:{pedestrian:{shortest:true}}}),
-        signal:AbortSignal.timeout(6000)
-      });
-      if(r.ok){const d=await r.json();if(d.trip?.summary){const res={dist:Math.round(d.trip.summary.length*1000),dur:Math.round(d.trip.summary.time)};ttCache.set(k,res);return res}}
+      const r=await fetch(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${fLo},${fLa};${tLo},${tLa}?overview=false&alternatives=false`,{signal:AbortSignal.timeout(6000)});
+      const d=await r.json();
+      if(d.code==='Ok'){const res={dist:Math.round(d.routes[0].distance),dur:Math.round(d.routes[0].duration)};ttCache.set(k,res);return res}
     }else{
       const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${fLo},${fLa};${tLo},${tLa}?overview=false&alternatives=false`,{signal:AbortSignal.timeout(6000)});
       const d=await r.json();
