@@ -653,7 +653,7 @@ function reverseGeocode(i){
 }
 
 function toggleStop(i){
-  if(editingStop===i){editingStop=null;renderStopsList()}
+  if(editingStop===i){editingStop=null;renderStopsList();save(true)}
   else setActiveStop(i);
 }
 
@@ -762,9 +762,9 @@ function buildTourData(){
   };
 }
 
-function save(){
-  if(!document.getElementById('t-city').value.trim()){toast('⚠ Añade el nombre de la ciudad');return}
-  if(!stops.length){toast('⚠ Añade al menos una parada');return}
+function save(silent=false){
+  if(!document.getElementById('t-city').value.trim()){if(!silent)toast('⚠ Añade el nombre de la ciudad');return}
+  if(!stops.length){if(!silent)toast('⚠ Añade al menos una parada');return}
   const data=buildTourData();
   const idx=LS.get('tours_index',{});
   idx[data.id]={id:data.id,city:data.city,country:data.country,emoji:data.emoji,
@@ -772,8 +772,7 @@ function save(){
     days:days.length,dateStart:days[0]?.date||'',dateEnd:days[days.length-1]?.date||''};
   LS.set('tours_index',idx);
   LS.set('tour_data_'+data.id,data);
-  toast('✓ Tour guardado');
-  document.getElementById('preview-btn').style.display='';
+  if(!silent){toast('✓ Tour guardado');document.getElementById('preview-btn').style.display='';}
 }
 
 function preview(){
