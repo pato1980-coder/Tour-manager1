@@ -467,6 +467,7 @@ function setActiveStop(idx){
   renderStopsList();
   const s=stops[idx];
   if(s.lat&&s.lng)map.panTo([s.lat,s.lng],{animate:true});
+  if(!s.wiki)searchWikipedia(idx);
 }
 
 function getStopFromForm(idx){
@@ -601,11 +602,13 @@ function searchWikipedia(i){
     .then(d=>{
       const results=d.query?.search||[];
       wikiSearchCache[i]=results;
-      if(!box)return;
-      if(!results.length){box.innerHTML='<div class="geo-result disabled">Sin resultados</div>';return}
-      box.innerHTML=results.map((r,gi)=>`<div class="geo-result" onclick="pickWikiResult(${i},${gi})">${esc(r.title)}</div>`).join('');
+      const b=document.getElementById('wikiresults_'+i);
+      if(!b)return;
+      b.classList.add('on');
+      if(!results.length){b.innerHTML='<div class="geo-result disabled">Sin resultados</div>';return}
+      b.innerHTML=results.map((r,gi)=>`<div class="geo-result" onclick="pickWikiResult(${i},${gi})">${esc(r.title)}</div>`).join('');
     })
-    .catch(()=>{if(box)box.innerHTML='<div class="geo-result disabled">Error de búsqueda</div>'});
+    .catch(()=>{const b=document.getElementById('wikiresults_'+i);if(b)b.innerHTML='<div class="geo-result disabled">Error de búsqueda</div>'});
 }
 function pickWikiResult(i,gi){
   const r=wikiSearchCache[i]?.[gi];

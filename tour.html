@@ -321,6 +321,7 @@ let courseUp=false;
 const mks=[];
 let tLines=[],nLines=[];
 let nSteps=[],nIdx=0,nDestLat=null,nDestLng=null,nDestIdx=null,pendingNav=false,pendingIdx=null;
+let offRouteCount=0,nBusy=false;
 const ttCache=new Map();
 
 function decodePolyline6(str){let i=0,lat=0,lng=0,r=[];while(i<str.length){let b,s=0,v=0;do{b=str.charCodeAt(i++)-63;v|=(b&0x1f)<<s;s+=5}while(b>=0x20);lat+=(v&1)?~(v>>1):(v>>1);s=0;v=0;do{b=str.charCodeAt(i++)-63;v|=(b&0x1f)<<s;s+=5}while(b>=0x20);lng+=(v&1)?~(v>>1):(v>>1);r.push([lat/1e6,lng/1e6])}return r}
@@ -866,11 +867,17 @@ function trackNav(lat,lng){
   if(dEnd<15){const s=nDestIdx!==null?STOPS[nDestIdx]:null;if(s&&!seen.has(skey(s))){seen.add(skey(s));saveSeen();buildBar();buildMarkers()}toast('🏁 Has llegado'+(s?' a '+s.name:''));closeNav();return}
   const TRIGGER=20;
   while(nIdx<nSteps.length-1){const nextStep=nSteps[nIdx+1];const dToNext=hav(lat,lng,nextStep.lat,nextStep.lng);if(dToNext<TRIGGER){nIdx++;updNav();renderUpcoming();if(navigator.vibrate)navigator.vibrate(60);toast(nSteps[nIdx].ico+' '+nSteps[nIdx].txt+(nSteps[nIdx].st?' por '+nSteps[nIdx].st:''))}else break}
+  if(tMode==='foot'&&!nBusy){
+    const nearby=nSteps.slice(nIdx,Math.min(nIdx+6,nSteps.length));
+    const dRoute=Math.min(...nearby.map(s=>hav(lat,lng,s.lat,s.lng)));
+    if(dRoute>50){offRouteCount++;if(offRouteCount>=3){offRouteCount=0;nBusy=true;toast('↪ Recalculando ruta…');navTo(nDestLat,nDestLng,nDestIdx).finally(()=>{nBusy=false});return}}
+    else offRouteCount=0;
+  }
   const nextManeuver=nSteps[nIdx+1];if(nextManeuver)document.getElementById('nav-dist').textContent=fmtD(hav(lat,lng,nextManeuver.lat,nextManeuver.lng));
   const eta=new Date(Date.now()+(dEnd/SPEED[tMode])*1000);document.getElementById('nv-eta').textContent=`${eta.getHours().toString().padStart(2,'0')}:${eta.getMinutes().toString().padStart(2,'0')}`;
 }
 
-function closeNav(){document.getElementById('navp').classList.remove('open');nLines.forEach(l=>map.removeLayer(l));nLines=[];nSteps=[];nIdx=0;nDestLat=null;nDestLng=null;nDestIdx=null;pendingNav=false;pendingIdx=null;document.getElementById('nav-upcoming').innerHTML='';document.getElementById('nv-eta').classList.remove('warn')}
+function closeNav(){document.getElementById('navp').classList.remove('open');nLines.forEach(l=>map.removeLayer(l));nLines=[];nSteps=[];nIdx=0;nDestLat=null;nDestLng=null;nDestIdx=null;pendingNav=false;pendingIdx=null;offRouteCount=0;nBusy=false;document.getElementById('nav-upcoming').innerHTML='';document.getElementById('nv-eta').classList.remove('warn')}
 
 function buildGI(){return L.divIcon({className:'',html:`<div class="gw"><div class="gr"></div><div class="gb"></div><div class="gc hid" id="gps-cone"></div></div>`,iconSize:[44,44],iconAnchor:[22,22]})}
 function updCone(h){const c=document.getElementById('gps-cone');if(!c)return;c.classList.remove('hid');c.style.transform=`rotate(${h}deg)`}
