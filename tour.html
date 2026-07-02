@@ -302,6 +302,15 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 const params=new URLSearchParams(location.search);
 const TOUR_ID=params.get('id');
 const IS_CUSTOM=params.get('custom')==='1';
+const SHARE_DATA=params.get('share');
+
+async function fromShareData(b64){
+  const bin=atob(b64.replace(/-/g,'+').replace(/_/g,'/'));
+  const buf=Uint8Array.from(bin,c=>c.charCodeAt(0));
+  const ds=new DecompressionStream('deflate-raw');
+  const pipe=new Blob([buf]).stream().pipeThrough(ds);
+  return JSON.parse(await new Response(pipe).text());
+}
 
 let ALL_STOPS=[],STOPS=[],TOUR={},DAYS=[],curDay=1;
 const seen=new Set();
@@ -331,6 +340,15 @@ function toast(m){const t=document.getElementById('toast');t.textContent=m;t.cla
 const LS={get:(k,d=null)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
 
 async function loadTour(){
+  if(SHARE_DATA){
+    document.getElementById('load-msg').textContent='Cargando tour compartido…';
+    try{
+      const data=await fromShareData(SHARE_DATA);
+      initTour(data);
+      setTimeout(()=>toast('👁 Tour compartido · Solo lectura'),600);
+    }catch(e){showError('Error al cargar el tour: '+e.message)}
+    return;
+  }
   if(!TOUR_ID){showError('No se especificó ningún tour.');return}
   document.getElementById('load-msg').textContent='Cargando '+TOUR_ID+'…';
   try{
