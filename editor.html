@@ -541,7 +541,7 @@ function renderStopsList(){
               <div style="font-family:var(--mo);font-size:8px;color:rgba(255,255,255,.25);text-align:center;margin-top:2px">min visita</div>
             </div>
           </div>
-          ${s.wiki?`<div class="wiki-chip"><a href="${esc(s.wiki)}" target="_blank">📖 ${esc(wikiLabel(s.wiki))}</a><button class="stop-act" title="Quitar" onclick="stops[${i}].wiki='';renderStopsList()" style="opacity:.4;font-size:12px">✕</button></div>`:`<div class="geo-results" id="wikiresults_${i}"></div>`}
+          <div style="margin-top:6px">${s.wiki?`<div class="wiki-chip"><a href="${esc(s.wiki)}" target="_blank">📖 ${esc(wikiLabel(s.wiki))}</a><button class="stop-act" title="Quitar" onclick="stops[${i}].wiki='';renderStopsList();searchWikipedia(${i})" style="opacity:.4;font-size:12px">✕</button></div>`:`<div style="font-family:var(--mo);font-size:8px;color:rgba(255,255,255,.3);margin-bottom:3px">📖 Wikipedia</div><div class="geo-results" id="wikiresults_${i}" style="position:static;box-shadow:none"></div>`}</div>
         </div>`;
       el.appendChild(div);
     });
