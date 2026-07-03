@@ -30,8 +30,8 @@ header{display:flex;align-items:center;gap:10px;padding:12px 16px;
 #sidebar{width:340px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border);background:rgba(10,12,18,.98)}
 @media(max-width:700px){
   #main{flex-direction:column}
-  #sidebar{width:100%;height:50vh;border-right:none;border-bottom:1px solid var(--border)}
-  #map-wrap{height:50vh}
+  #sidebar{width:100%;height:40vh;flex-shrink:0;border-right:none;border-bottom:1px solid var(--border)}
+  #map-wrap{flex:1;min-height:80px}
 }
 #sidebar-scroll{flex:1;overflow-y:auto;padding:14px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.1) transparent}
 #sidebar-scroll::-webkit-scrollbar{width:4px}
@@ -127,6 +127,18 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
   padding:8px 16px;border-radius:20px;opacity:0;transition:opacity .2s,transform .2s;
   pointer-events:none;white-space:nowrap;box-shadow:0 2px 16px rgba(0,0,0,.6);max-width:90vw}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+#timeline{flex-shrink:0;background:rgba(10,12,18,.98);border-top:1px solid var(--border);padding:8px 14px 10px;overflow-x:auto;scrollbar-width:none}
+#timeline::-webkit-scrollbar{display:none}
+#tl-inner{display:flex;align-items:center;min-width:max-content;padding:2px 0}
+.tl-stop{display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 7px;border-radius:8px;cursor:grab;transition:background .12s,opacity .15s;min-width:50px;user-select:none;-webkit-user-select:none}
+.tl-stop.tl-active{background:rgba(91,184,245,.1)}
+.tl-stop.tl-dragging{opacity:.3;cursor:grabbing}
+.tl-stop.tl-over{background:rgba(91,184,245,.18)}
+.tl-bubble{width:26px;height:26px;border-radius:50%;color:#0a0c12;font-family:var(--mo);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;transition:transform .12s;pointer-events:none;flex-shrink:0}
+.tl-stop:hover .tl-bubble,.tl-stop.tl-over .tl-bubble{transform:scale(1.1)}
+.tl-name{font-family:var(--mo);font-size:7px;color:rgba(255,255,255,.4);text-align:center;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none}
+.tl-conn{width:20px;height:2px;border-radius:1px;flex-shrink:0;margin-bottom:13px;pointer-events:none;opacity:.4}
 </style>
 </head>
 <body>
@@ -180,6 +192,7 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
       </div>
     </div>
   </div>
+  <div id="timeline"><div id="tl-inner"></div></div>
 </div>
 
 <div id="export-panel" onclick="closeExport()">
@@ -505,15 +518,13 @@ function renderStopsList(){
       div.className='stop-card'+(isOpen?' active':'');
       div.dataset.idx=i;
       const hasCoords=s.lat!==null&&s.lng!==null;
-      const isFirst=localPos===0,isLast=localPos===dayStops.length-1;
+      const isFirst=localPos===0;
       div.innerHTML=`
         <div class="stop-head" onclick="toggleStop(${i})">
           <div class="stop-num${isFirst?' first':''}"${isFirst?'':` style="background:${dcol}"`}>${localPos+1}</div>
           <div class="stop-name-preview">${esc(s.name)}</div>
           <div class="stop-time-preview">${s.time}</div>
           <div class="stop-actions">
-            ${!isFirst?`<button class="stop-act" title="Subir" onclick="event.stopPropagation();moveStop(${i},-1)">↑</button>`:''}
-            ${!isLast?`<button class="stop-act" title="Bajar" onclick="event.stopPropagation();moveStop(${i},1)">↓</button>`:''}
             <button class="stop-act" title="Eliminar" onclick="event.stopPropagation();removeStop(${i})">🗑</button>
           </div>
         </div>
@@ -547,6 +558,7 @@ function renderStopsList(){
       el.appendChild(div);
     });
   });
+  renderTimeline();
 }
 
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
@@ -870,6 +882,92 @@ function copyShareLink(){
 function confirmBack(){
   if(stops.length&&document.getElementById('t-city').value.trim())save();
   location.href='index.html';
+}
+
+function renderTimeline(){
+  const inner=document.getElementById('tl-inner');
+  if(!inner)return;
+  inner.innerHTML='';
+  inner._dragBound=false;
+  if(!stops.length)return;
+  stops.forEach((s,i)=>{
+    if(i>0){
+      const prevDayIdx=((stops[i-1].day||1)-1);
+      const conn=document.createElement('div');
+      conn.className='tl-conn';
+      conn.style.background=DCOL[prevDayIdx%DCOL.length];
+      inner.appendChild(conn);
+    }
+    const dayIdx=((s.day||1)-1);
+    const col=DCOL[dayIdx%DCOL.length];
+    const el=document.createElement('div');
+    el.className='tl-stop'+(editingStop===i?' tl-active':'');
+    el.dataset.idx=i;
+    el.innerHTML=`<div class="tl-bubble" style="background:${col}">${i+1}</div><div class="tl-name">${esc(s.name||'—')}</div>`;
+    inner.appendChild(el);
+  });
+  attachTimelineDrag();
+}
+
+function attachTimelineDrag(){
+  const tl=document.getElementById('tl-inner');
+  if(!tl||tl._dragBound)return;
+  tl._dragBound=true;
+  let dragSrc=null,srcEl=null,started=false,startX=0,startY=0,longTimer=null,mouseMode=false;
+  function cleanup(){
+    clearTimeout(longTimer);longTimer=null;
+    if(srcEl){srcEl.classList.remove('tl-dragging');srcEl=null;}
+    document.querySelectorAll('.tl-stop').forEach(s=>s.classList.remove('tl-over'));
+    dragSrc=null;started=false;
+  }
+  tl.addEventListener('pointerdown',e=>{
+    const el=e.target.closest('.tl-stop');if(!el)return;
+    dragSrc=parseInt(el.dataset.idx);srcEl=el;startX=e.clientX;startY=e.clientY;started=false;
+    mouseMode=e.pointerType==='mouse';
+    tl.setPointerCapture(e.pointerId);
+    if(!mouseMode){
+      longTimer=setTimeout(()=>{started=true;srcEl?.classList.add('tl-dragging');if(navigator.vibrate)navigator.vibrate(30)},280);
+    }
+  });
+  tl.addEventListener('pointermove',e=>{
+    if(dragSrc===null)return;
+    const dx=Math.abs(e.clientX-startX);
+    if(!started){
+      if(mouseMode&&dx>6){started=true;srcEl?.classList.add('tl-dragging');}
+      else if(!mouseMode&&dx>14){cleanup();return;}
+      if(!started)return;
+    }
+    e.preventDefault();
+    document.querySelectorAll('.tl-stop').forEach(s=>s.classList.remove('tl-over'));
+    const under=document.elementFromPoint(e.clientX,e.clientY);
+    const target=under?.closest('.tl-stop');
+    if(target&&parseInt(target.dataset.idx)!==dragSrc)target.classList.add('tl-over');
+  },{passive:false});
+  tl.addEventListener('pointerup',e=>{
+    clearTimeout(longTimer);
+    const wasStarted=started,wasFrom=dragSrc,savedX=startX,savedY=startY;
+    cleanup();
+    if(!wasStarted){
+      const under=document.elementFromPoint(savedX,savedY);
+      const el=under?.closest('.tl-stop');
+      if(el){const idx=parseInt(el.dataset.idx);editingStop===idx?toggleStop(idx):setActiveStop(idx);}
+      return;
+    }
+    const under=document.elementFromPoint(e.clientX,e.clientY);
+    const target=under?.closest('.tl-stop');
+    if(target&&wasFrom!==null){const toIdx=parseInt(target.dataset.idx);if(toIdx!==wasFrom)reorderByTimeline(wasFrom,toIdx);}
+  });
+  tl.addEventListener('pointercancel',cleanup);
+}
+
+function reorderByTimeline(from,to){
+  syncAllForms();
+  const moved=stops.splice(from,1)[0];stops.splice(to,0,moved);
+  if(editingStop===from)editingStop=to;
+  else if(editingStop>from&&editingStop<=to)editingStop--;
+  else if(editingStop<from&&editingStop>=to)editingStop++;
+  recalcTimes();renderStopsList();renderMarkers();updateRoute();save(true);
+  if(navigator.vibrate)navigator.vibrate(40);
 }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
