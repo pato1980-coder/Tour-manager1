@@ -174,6 +174,9 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 .btn-wiki{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6)}
 .btn-reorder{background:rgba(176,126,245,.1);color:var(--p)}
 
+/* Photo path */
+#fab-photo.on{background:#f55b8a!important;color:#fff;border-color:transparent}
+
 /* GPS marker */
 .gw{position:relative;width:44px;height:44px;display:flex;align-items:center;justify-content:center}
 .gr{position:absolute;width:38px;height:38px;border-radius:50%;background:rgba(91,184,245,.1);animation:rpl 2.4s ease-out infinite;pointer-events:none}
@@ -223,6 +226,8 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
   <button class="fab" id="fab-ctr" style="display:none" onclick="centerMe()">⊙</button>
   <button class="fab" id="fab-compass" style="display:none" onclick="toggleCourseUp()" title="Orientar mapa según rumbo">🧭</button>
   <button class="fab" id="fab-reorder" onclick="openReorder()" style="background:rgba(176,126,245,.18);color:var(--p)">⇅</button>
+  <button class="fab" id="fab-photo" onclick="openPhotoPicker()" title="Comparar con ruta real (fotos)">📷</button>
+  <input type="file" id="photo-input" accept="image/*" multiple style="display:none" onchange="handlePhotoFiles(this.files)">
 </div>
 
 <div id="daybar"></div>
@@ -972,6 +977,77 @@ let ty=0;
 document.getElementById('sh').addEventListener('touchstart',e=>{ty=e.touches[0].clientY},{passive:true});
 document.getElementById('sh').addEventListener('touchmove',e=>{if(e.touches[0].clientY-ty>60)closeSh()},{passive:true});
 document.getElementById('navp').addEventListener('click',e=>e.stopPropagation());
+
+/* ══ PHOTO ROUTE COMPARISON ══ */
+let photoPoints=[],photoLine=null,photoMks=[];
+
+async function loadExifr(){
+  if(window.exifr)return;
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/exifr/dist/lite.umd.js';
+    s.onload=res;s.onerror=()=>rej(new Error('exifr'));
+    document.head.appendChild(s);
+  });
+}
+
+function openPhotoPicker(){
+  if(photoPoints.length){
+    clearPhotoLayer();photoPoints=[];
+    document.getElementById('fab-photo').classList.remove('on');
+    toast('📷 Comparación eliminada');
+    return;
+  }
+  document.getElementById('photo-input').click();
+}
+
+async function handlePhotoFiles(files){
+  if(!files||!files.length)return;
+  const btn=document.getElementById('fab-photo');
+  btn.textContent='⏳';
+  try{await loadExifr()}catch{btn.textContent='📷';toast('⚠ Sin conexión para cargar el lector EXIF');return}
+  const pts=[];let noGps=0;
+  for(const f of Array.from(files)){
+    try{
+      const gps=await exifr.gps(f);
+      if(!gps){noGps++;continue}
+      pts.push({lat:gps.latitude,lng:gps.longitude,ts:f.lastModified||0});
+    }catch{noGps++}
+  }
+  btn.textContent='📷';
+  document.getElementById('photo-input').value='';
+  if(!pts.length){toast('⚠ Ninguna foto tiene GPS — activa la ubicación en la cámara');return}
+  pts.sort((a,b)=>a.ts-b.ts);
+  clearPhotoLayer();
+  photoPoints=pts;
+  drawPhotoPath();
+  toast(noGps?`📷 ${pts.length} con GPS · ${noGps} sin ubicación`:`📷 ${pts.length} fotos · Ruta real visible`);
+}
+
+function drawPhotoPath(){
+  if(!photoPoints.length||!map)return;
+  const lls=photoPoints.map(p=>[p.lat,p.lng]);
+  photoLine=L.polyline(lls,{color:'#f55b8a',weight:3.5,opacity:.88,dashArray:'10 6'}).addTo(map);
+  photoPoints.forEach((p,i)=>{
+    const edge=i===0||i===photoPoints.length-1;
+    const sz=edge?18:10;
+    const mk=L.marker([p.lat,p.lng],{
+      icon:L.divIcon({className:'',
+        html:`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:#f55b8a;border:${edge?2:1.5}px solid rgba(255,255,255,.9);box-shadow:0 2px 6px rgba(0,0,0,.6)"></div>`,
+        iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+      zIndexOffset:50
+    }).addTo(map);
+    photoMks.push(mk);
+  });
+  document.getElementById('fab-photo').classList.add('on');
+  const allPts=[...lls,...STOPS.map(s=>[s.lat,s.lng])];
+  map.fitBounds(L.latLngBounds(allPts),{padding:[60,60]});
+}
+
+function clearPhotoLayer(){
+  if(photoLine){map.removeLayer(photoLine);photoLine=null}
+  photoMks.forEach(m=>map.removeLayer(m));photoMks=[];
+}
 
 loadTour();
 </script>
