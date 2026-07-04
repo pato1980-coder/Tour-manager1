@@ -128,9 +128,11 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
   padding:14px 0 calc(env(safe-area-inset-bottom,0px)+8px);
   display:flex;align-items:center;overflow-x:auto;scrollbar-width:none}
 #bar::-webkit-scrollbar{display:none}
-.tl{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:60px;padding:2px 5px;cursor:grab;flex-shrink:0;user-select:none;-webkit-user-select:none;border-radius:8px;transition:opacity .15s,background .12s}
-.tl.tl-dragging{opacity:.3;cursor:grabbing}
+.tl{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:60px;padding:2px 5px 3px;cursor:pointer;flex-shrink:0;user-select:none;-webkit-user-select:none;border-radius:8px;transition:opacity .15s,background .12s}
+.tl.tl-dragging{opacity:.3}
 .tl.tl-over{background:rgba(91,184,245,.14)}
+.tl-handle{font-size:10px;color:rgba(255,255,255,.18);cursor:grab;line-height:1;padding:1px 10px;margin:0 -10px;letter-spacing:1px;transition:color .12s}
+.tl-handle:hover,.tl.tl-over .tl-handle,.tl.tl-dragging .tl-handle{color:rgba(255,255,255,.55)}
 .tl-n{width:26px;height:26px;border-radius:50%;font-family:var(--mo);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid transparent;transition:all .2s;pointer-events:none}
 .tl-n.u{background:var(--dc);color:#0a0c12}
 .tl-n.s{background:var(--seen);color:#fff}
@@ -138,7 +140,7 @@ html,body{height:100%;background:#0a0c12;font-family:system-ui,sans-serif;overfl
 .tl-n.la{background:#8a6a3a;color:#fff}
 .tl-lbl{font-family:var(--mo);font-size:7px;color:rgba(255,255,255,.35);text-align:center;max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none}
 .tl-t{font-family:var(--mo);font-size:7px;color:var(--b);text-align:center;pointer-events:none}
-.tl-seg{width:12px;height:2px;background:rgba(255,255,255,.1);flex-shrink:0;align-self:center;margin-bottom:14px;pointer-events:none}
+.tl-seg{width:12px;height:2px;background:rgba(255,255,255,.1);flex-shrink:0;align-self:center;margin-bottom:16px;pointer-events:none}
 .tl-seg.done{background:var(--seen)}
 
 /* BOTTOM SHEET */
@@ -589,7 +591,7 @@ function buildBar(){
     const isDone=seen.has(skey(s));
     const nc=isDone?'s':i===0?'fi':i===a.length-1?'la':'u';
     const d=document.createElement('div');d.className='tl';d.dataset.idx=i;
-    d.innerHTML=`<div class="tl-n ${nc}">${s.n}</div><div class="tl-lbl">${s.name.split('·')[0].trim()}</div><div class="tl-t">${s.time}</div>`;
+    d.innerHTML=`<div class="tl-handle">⠿</div><div class="tl-n ${nc}">${s.n}</div><div class="tl-lbl">${s.name.split('·')[0].trim()}</div><div class="tl-t">${s.time}</div>`;
     el.appendChild(d);
     if(i<a.length-1){const seg=document.createElement('div');seg.className='tl-seg'+(isDone?' done':'');el.appendChild(seg)}
   });
@@ -983,51 +985,49 @@ document.getElementById('navp').addEventListener('click',e=>e.stopPropagation())
 /* ══ BAR DRAG-TO-REORDER ══ */
 function initBarDrag(){
   const bar=document.getElementById('bar');
-  let dragSrc=null,srcEl=null,started=false,startX=0,startY=0,longTimer=null,mouseMode=false;
+  let dragSrc=null,srcEl=null,started=false,startX=0,startY=0,justDragged=false;
   function cleanup(){
-    clearTimeout(longTimer);longTimer=null;
     if(srcEl){srcEl.classList.remove('tl-dragging');srcEl=null}
     bar.querySelectorAll('.tl').forEach(s=>s.classList.remove('tl-over'));
     dragSrc=null;started=false;
   }
   bar.addEventListener('pointerdown',e=>{
     const el=e.target.closest('.tl');if(!el)return;
-    dragSrc=parseInt(el.dataset.idx);srcEl=el;startX=e.clientX;startY=e.clientY;started=false;
-    mouseMode=e.pointerType==='mouse';
-    if(mouseMode)bar.setPointerCapture(e.pointerId);
-    if(!mouseMode){
-      longTimer=setTimeout(()=>{started=true;srcEl?.classList.add('tl-dragging');if(navigator.vibrate)navigator.vibrate(30)},280);
-    }
+    const onHandle=!!e.target.closest('.tl-handle');
+    const isTouch=e.pointerType!=='mouse';
+    if(isTouch&&!onHandle)return; // touch on bubble body → tap via click event
+    dragSrc=parseInt(el.dataset.idx);srcEl=el;startX=e.clientX;startY=e.clientY;
+    bar.setPointerCapture(e.pointerId);
+    if(onHandle&&isTouch){started=true;srcEl.classList.add('tl-dragging');if(navigator.vibrate)navigator.vibrate(20)}
+    else started=false; // mouse: starts after threshold
   });
   bar.addEventListener('pointermove',e=>{
     if(dragSrc===null)return;
-    const dx=Math.abs(e.clientX-startX);
     if(!started){
-      if(mouseMode&&dx>6){started=true;srcEl?.classList.add('tl-dragging')}
-      else if(!mouseMode&&dx>14){cleanup();return}
-      if(!started)return;
+      if(Math.abs(e.clientX-startX)>4){started=true;srcEl?.classList.add('tl-dragging')}
+      else return;
     }
     e.preventDefault();
     bar.querySelectorAll('.tl').forEach(s=>s.classList.remove('tl-over'));
-    const under=document.elementFromPoint(e.clientX,e.clientY);
-    const target=under?.closest('.tl');
+    const target=document.elementFromPoint(e.clientX,e.clientY)?.closest('.tl');
     if(target&&parseInt(target.dataset.idx)!==dragSrc)target.classList.add('tl-over');
   },{passive:false});
   bar.addEventListener('pointerup',e=>{
-    clearTimeout(longTimer);
-    const wasStarted=started,wasFrom=dragSrc,savedX=startX,savedY=startY;
+    const wasStarted=started,wasFrom=dragSrc;
     cleanup();
-    if(!wasStarted){
-      const under=document.elementFromPoint(savedX,savedY);
-      const el=under?.closest('.tl');
-      if(el)openSh(parseInt(el.dataset.idx));
-      return;
+    if(wasStarted){
+      justDragged=true;setTimeout(()=>{justDragged=false},250);
+      const target=document.elementFromPoint(e.clientX,e.clientY)?.closest('.tl');
+      if(target&&wasFrom!==null){const toIdx=parseInt(target.dataset.idx);if(toIdx!==wasFrom)reorderFromBar(wasFrom,toIdx)}
     }
-    const under=document.elementFromPoint(e.clientX,e.clientY);
-    const target=under?.closest('.tl');
-    if(target&&wasFrom!==null){const toIdx=parseInt(target.dataset.idx);if(toIdx!==wasFrom)reorderFromBar(wasFrom,toIdx)}
   });
   bar.addEventListener('pointercancel',cleanup);
+  // Taps (touch on bubble body, mouse click) handled here
+  bar.addEventListener('click',e=>{
+    if(justDragged||e.target.closest('.tl-handle'))return;
+    const el=e.target.closest('.tl');
+    if(el)openSh(parseInt(el.dataset.idx));
+  });
 }
 
 function reorderFromBar(from,to){
