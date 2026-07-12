@@ -227,6 +227,7 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.2)}
 <script>
 const params=new URLSearchParams(location.search);
 const EDIT_ID=params.get('id');
+const SAVE_ID=EDIT_ID||('tour_'+Date.now());
 const LS={
   get:(k,d=null)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},
   set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
@@ -247,7 +248,7 @@ let satLabels=null;
 function getTourMeta(){
   const dur=days.length===1?'1 día':`${days.length} días`;
   return{
-    id:EDIT_ID||('tour_'+Date.now()),
+    id:SAVE_ID,
     city:document.getElementById('t-city').value.trim()||'Mi Tour',
     country:document.getElementById('t-country').value.trim(),
     emoji:'📍',
