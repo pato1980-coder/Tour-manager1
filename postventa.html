@@ -51,9 +51,6 @@ select:disabled{opacity:.35;cursor:not-allowed}
 .ddown-opt:hover{background:rgba(91,184,245,.12)}
 .ddown-opt.selected{background:rgba(91,184,245,.18);color:var(--b);font-weight:700}
 
-.badge{font-family:var(--mo);font-size:9px;padding:4px 9px;border-radius:20px;font-weight:700;letter-spacing:.04em}
-.badge.g{background:rgba(94,221,138,.12);color:var(--g);border:1px solid rgba(94,221,138,.25)}
-
 .photo-strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .photo-thumb{position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
 .photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
@@ -118,46 +115,7 @@ select:disabled{opacity:.35;cursor:not-allowed}
 <div class="wrap">
 
   <div class="card">
-    <div class="card-t"><span class="n">1</span> Datos de contacto</div>
-    <div class="row">
-      <div class="field" id="f-nombre">
-        <label>Nombre completo *</label>
-        <input type="text" id="in-nombre" placeholder="Ej. María Pérez">
-        <div class="err">Ingresa tu nombre</div>
-      </div>
-      <div class="field" id="f-telefono">
-        <label>Teléfono *</label>
-        <input type="tel" id="in-telefono" placeholder="+56 9 1234 5678">
-        <div class="err">Ingresa un teléfono</div>
-      </div>
-    </div>
-    <div class="row">
-      <div class="field" id="f-email">
-        <label>Email *</label>
-        <input type="email" id="in-email" placeholder="tu@correo.com">
-        <div class="err">Ingresa un email válido</div>
-      </div>
-      <div class="field" id="f-proyecto">
-        <label>Proyecto / Edificio *</label>
-        <input type="text" id="in-proyecto" placeholder="Ej. Edificio Exxacon Ñuñoa">
-        <div class="err">Ingresa el proyecto</div>
-      </div>
-    </div>
-    <div class="row">
-      <div class="field" id="f-unidad">
-        <label>N° Depto / Unidad *</label>
-        <input type="text" id="in-unidad" placeholder="Ej. 502">
-        <div class="err">Ingresa la unidad</div>
-      </div>
-      <div class="field">
-        <label>Estado garantía</label>
-        <div style="padding-top:6px"><span class="badge g">VIGENTE</span></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-t"><span class="n">2</span> Agregar requerimiento</div>
+    <div class="card-t"><span class="n">1</span> Agregar requerimiento</div>
 
     <div class="field" id="f-recinto">
       <label>Recinto *</label>
@@ -227,7 +185,7 @@ select:disabled{opacity:.35;cursor:not-allowed}
   </div>
 
   <div class="card" id="lista-card" style="display:none">
-    <div class="card-t"><span class="n">3</span> Requerimientos agregados</div>
+    <div class="card-t"><span class="n">2</span> Requerimientos agregados</div>
     <div id="req-list"></div>
   </div>
 
@@ -470,24 +428,9 @@ function renderReqList(){
   `).join('');
 }
 
-function validateContact(){
-  let ok=true;
-  const req=[['f-nombre','in-nombre'],['f-telefono','in-telefono'],['f-email','in-email'],['f-proyecto','in-proyecto'],['f-unidad','in-unidad']];
-  req.forEach(([fid,iid])=>{
-    const v=document.getElementById(iid).value.trim();
-    let valid=!!v;
-    if(iid==='in-email'&&valid)valid=/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
-    document.getElementById(fid).classList.toggle('invalid',!valid);
-    if(!valid)ok=false;
-  });
-  return ok;
-}
-
 function openConfirm(){
   if(!requerimientos.length){toast('Agrega al menos un requerimiento');return}
-  if(!validateContact()){toast('Completa tus datos de contacto');document.getElementById('in-nombre').scrollIntoView({behavior:'smooth',block:'center'});return}
   document.getElementById('confirm-summary').innerHTML=
-    `<b style="color:#fff">${escapeHtml(document.getElementById('in-proyecto').value)}</b> · Unidad ${escapeHtml(document.getElementById('in-unidad').value)}<br>`+
     `Se enviarán <b style="color:#fff">${requerimientos.length}</b> requerimiento(s) a postventa.`;
   document.getElementById('confirm-modal').classList.add('open');
 }
@@ -500,13 +443,6 @@ function sendSolicitud(){
   const solicitud={
     folio,
     fecha:new Date().toISOString(),
-    cliente:{
-      nombre:document.getElementById('in-nombre').value.trim(),
-      telefono:document.getElementById('in-telefono').value.trim(),
-      email:document.getElementById('in-email').value.trim(),
-      proyecto:document.getElementById('in-proyecto').value.trim(),
-      unidad:document.getElementById('in-unidad').value.trim()
-    },
     requerimientos
   };
   const historial=LS.get('postventa_solicitudes',[]);
@@ -538,11 +474,6 @@ function resetForm(){
   pendingPhotos=[];
   renderPhotoStrip();
   renderReqList();
-  document.getElementById('in-nombre').value='';
-  document.getElementById('in-telefono').value='';
-  document.getElementById('in-email').value='';
-  document.getElementById('in-proyecto').value='';
-  document.getElementById('in-unidad').value='';
   document.getElementById('in-desc').value='';
   resetDropdowns();
 }
@@ -557,7 +488,7 @@ function openHistory(){
     listEl.innerHTML=historyCache.map((s,i)=>`
       <div class="history-item" onclick="downloadSolicitud(historyCache[${i}])" title="Descargar">
         <div class="top"><span class="folio-s">${s.folio}</span><span class="date">${new Date(s.fecha).toLocaleString()}</span></div>
-        <div class="proj">${escapeHtml(s.cliente.proyecto)} · Unidad ${escapeHtml(s.cliente.unidad)} · ${s.requerimientos.length} req.</div>
+        <div class="proj">${s.requerimientos.length} requerimiento(s)</div>
       </div>
     `).join('');
   }
