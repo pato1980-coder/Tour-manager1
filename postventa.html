@@ -28,10 +28,28 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,12,18,.97);
 .field:last-child{margin-bottom:0}
 .hint{font-family:var(--mo);font-size:9px;color:var(--muted);margin-top:4px}
 .err{font-family:var(--mo);font-size:9px;color:var(--r);margin-top:4px;display:none}
-.field.invalid select,.field.invalid input,.field.invalid textarea{border-color:var(--r)}
+.field.invalid select,.field.invalid input,.field.invalid textarea,.field.invalid .ddown-btn{border-color:var(--r)}
 .field.invalid .err{display:block}
 
 select:disabled{opacity:.35;cursor:not-allowed}
+
+.ddown{position:relative}
+.ddown-btn{background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;color:var(--text);
+  font-family:inherit;font-size:14px;padding:10px 12px;width:100%;outline:none;transition:border-color .15s;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left}
+.ddown-btn:focus{border-color:rgba(91,184,245,.5)}
+.ddown-btn:disabled{opacity:.35;cursor:not-allowed}
+.ddown-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.ddown.has-value .ddown-label{color:var(--text)}
+.ddown-arrow{flex-shrink:0;font-size:11px;color:var(--muted);transition:transform .15s}
+.ddown.open .ddown-arrow{transform:rotate(180deg)}
+.ddown-panel{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:100;
+  background:rgba(17,21,32,.99);border:1px solid var(--border);border-radius:10px;
+  max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.ddown.open .ddown-panel{display:block}
+.ddown-opt{padding:10px 12px;font-size:13px;color:var(--text);cursor:pointer}
+.ddown-opt:hover{background:rgba(91,184,245,.12)}
+.ddown-opt.selected{background:rgba(91,184,245,.18);color:var(--b);font-weight:700}
 
 .badge{font-family:var(--mo);font-size:9px;padding:4px 9px;border-radius:20px;font-weight:700;letter-spacing:.04em}
 .badge.g{background:rgba(94,221,138,.12);color:var(--g);border:1px solid rgba(94,221,138,.25)}
@@ -143,33 +161,49 @@ select:disabled{opacity:.35;cursor:not-allowed}
 
     <div class="field" id="f-recinto">
       <label>Recinto *</label>
-      <select id="sel-recinto" onchange="onRecintoChange()">
-        <option value="">Selecciona un recinto…</option>
-      </select>
+      <div class="ddown" id="dd-recinto">
+        <button type="button" class="ddown-btn" onclick="toggleDropdown('recinto')">
+          <span class="ddown-label" id="dd-recinto-label">Selecciona un recinto…</span>
+          <span class="ddown-arrow">▾</span>
+        </button>
+        <div class="ddown-panel" id="dd-recinto-panel"></div>
+      </div>
       <div class="err">Selecciona un recinto</div>
     </div>
 
     <div class="field" id="f-lugar">
       <label>Lugar *</label>
-      <select id="sel-lugar" onchange="onLugarChange()" disabled>
-        <option value="">Selecciona un recinto primero…</option>
-      </select>
+      <div class="ddown" id="dd-lugar" data-disabled="true">
+        <button type="button" class="ddown-btn" onclick="toggleDropdown('lugar')" disabled>
+          <span class="ddown-label" id="dd-lugar-label">Selecciona un recinto primero…</span>
+          <span class="ddown-arrow">▾</span>
+        </button>
+        <div class="ddown-panel" id="dd-lugar-panel"></div>
+      </div>
       <div class="err">Selecciona un lugar</div>
     </div>
 
     <div class="row">
       <div class="field" id="f-item">
         <label>Ítem *</label>
-        <select id="sel-item" onchange="onItemChange()" disabled>
-          <option value="">Selecciona un lugar primero…</option>
-        </select>
+        <div class="ddown" id="dd-item" data-disabled="true">
+          <button type="button" class="ddown-btn" onclick="toggleDropdown('item')" disabled>
+            <span class="ddown-label" id="dd-item-label">Selecciona un lugar primero…</span>
+            <span class="ddown-arrow">▾</span>
+          </button>
+          <div class="ddown-panel" id="dd-item-panel"></div>
+        </div>
         <div class="err">Selecciona un ítem</div>
       </div>
       <div class="field" id="f-problema">
         <label>Problema *</label>
-        <select id="sel-problema" disabled>
-          <option value="">Selecciona un ítem primero…</option>
-        </select>
+        <div class="ddown" id="dd-problema" data-disabled="true">
+          <button type="button" class="ddown-btn" onclick="toggleDropdown('problema')" disabled>
+            <span class="ddown-label" id="dd-problema-label">Selecciona un ítem primero…</span>
+            <span class="ddown-arrow">▾</span>
+          </button>
+          <div class="ddown-panel" id="dd-problema-panel"></div>
+        </div>
         <div class="err">Selecciona un problema</div>
       </div>
     </div>
@@ -266,58 +300,77 @@ function toast(m){
 let ARBOL={};
 let requerimientos=[];
 let pendingPhotos=[];
+const selected={recinto:'',lugar:'',item:'',problema:''};
+const PLACEHOLDERS={
+  recinto:'Selecciona un recinto…',
+  lugar:'Selecciona un recinto primero…',
+  item:'Selecciona un lugar primero…',
+  problema:'Selecciona un ítem primero…'
+};
 
 fetch('data/postventa-arbol.json').then(r=>r.json()).then(data=>{
   ARBOL=data;
-  const sel=document.getElementById('sel-recinto');
-  Object.keys(ARBOL).sort().forEach(r=>{
-    const o=document.createElement('option');o.value=r;o.textContent=r;sel.appendChild(o);
-  });
+  setDropdownOptions('recinto',Object.keys(ARBOL),'Selecciona un recinto…');
 }).catch(()=>toast('No se pudo cargar el catálogo de recintos'));
 
-function fillSelect(id,options,placeholder){
-  const sel=document.getElementById(id);
-  sel.innerHTML=`<option value="">${placeholder}</option>`+options.sort().map(o=>`<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('');
-  sel.disabled=options.length===0;
+function setDropdownOptions(key,options,placeholder,enabled){
+  enabled=enabled===undefined?options.length>0:enabled;
+  const dd=document.getElementById('dd-'+key);
+  const btn=dd.querySelector('.ddown-btn');
+  const panel=document.getElementById('dd-'+key+'-panel');
+  btn.disabled=!enabled;
+  dd.dataset.disabled=(!enabled).toString();
+  panel.innerHTML='';
+  options.slice().sort().forEach(o=>{
+    const opt=document.createElement('div');
+    opt.className='ddown-opt'+(o===selected[key]?' selected':'');
+    opt.textContent=o;
+    opt.addEventListener('click',()=>selectDropdownOption(key,o));
+    panel.appendChild(opt);
+  });
+  if(!enabled||!options.includes(selected[key])){
+    selected[key]='';
+    document.getElementById('dd-'+key+'-label').textContent=placeholder;
+    dd.classList.remove('has-value');
+  }
 }
 
-function onRecintoChange(){
-  const recinto=document.getElementById('sel-recinto').value;
-  clearField('f-recinto');
-  if(!recinto){
-    fillSelect('sel-lugar',[],'Selecciona un recinto primero…');
-    fillSelect('sel-item',[],'Selecciona un lugar primero…');
-    fillSelect('sel-problema',[],'Selecciona un ítem primero…');
-    return;
-  }
-  fillSelect('sel-lugar',Object.keys(ARBOL[recinto]||{}),'Selecciona un lugar…');
-  fillSelect('sel-item',[],'Selecciona un lugar primero…');
-  fillSelect('sel-problema',[],'Selecciona un ítem primero…');
+function toggleDropdown(key){
+  const dd=document.getElementById('dd-'+key);
+  if(dd.dataset.disabled==='true')return;
+  const willOpen=!dd.classList.contains('open');
+  document.querySelectorAll('.ddown.open').forEach(d=>d.classList.remove('open'));
+  if(willOpen)dd.classList.add('open');
 }
 
-function onLugarChange(){
-  const recinto=document.getElementById('sel-recinto').value;
-  const lugar=document.getElementById('sel-lugar').value;
-  clearField('f-lugar');
-  if(!lugar){
-    fillSelect('sel-item',[],'Selecciona un lugar primero…');
-    fillSelect('sel-problema',[],'Selecciona un ítem primero…');
-    return;
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.ddown'))document.querySelectorAll('.ddown.open').forEach(d=>d.classList.remove('open'));
+});
+
+function selectDropdownOption(key,value){
+  selected[key]=value;
+  const dd=document.getElementById('dd-'+key);
+  dd.classList.remove('open');
+  dd.classList.add('has-value');
+  document.getElementById('dd-'+key+'-label').textContent=value;
+  clearField('f-'+key);
+  if(key==='recinto'){
+    setDropdownOptions('lugar',Object.keys(ARBOL[value]||{}),PLACEHOLDERS.lugar);
+    setDropdownOptions('item',[],PLACEHOLDERS.item,false);
+    setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+  }else if(key==='lugar'){
+    setDropdownOptions('item',Object.keys(ARBOL[selected.recinto][value]||{}),PLACEHOLDERS.item);
+    setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+  }else if(key==='item'){
+    setDropdownOptions('problema',ARBOL[selected.recinto][selected.lugar][value]||[],PLACEHOLDERS.problema);
   }
-  fillSelect('sel-item',Object.keys(ARBOL[recinto][lugar]||{}),'Selecciona un ítem…');
-  fillSelect('sel-problema',[],'Selecciona un ítem primero…');
 }
 
-function onItemChange(){
-  const recinto=document.getElementById('sel-recinto').value;
-  const lugar=document.getElementById('sel-lugar').value;
-  const item=document.getElementById('sel-item').value;
-  clearField('f-item');
-  if(!item){
-    fillSelect('sel-problema',[],'Selecciona un ítem primero…');
-    return;
-  }
-  fillSelect('sel-problema',ARBOL[recinto][lugar][item]||[],'Selecciona un problema…');
+function resetDropdowns(){
+  setDropdownOptions('recinto',Object.keys(ARBOL),PLACEHOLDERS.recinto);
+  setDropdownOptions('lugar',[],PLACEHOLDERS.lugar,false);
+  setDropdownOptions('item',[],PLACEHOLDERS.item,false);
+  setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
 }
 
 function clearField(id){document.getElementById(id).classList.remove('invalid')}
@@ -360,13 +413,9 @@ function removePendingPhoto(i){pendingPhotos.splice(i,1);renderPhotoStrip()}
 
 function validateReqForm(){
   let ok=true;
-  const checks=[
-    ['f-recinto','sel-recinto'],['f-lugar','sel-lugar'],['f-item','sel-item'],
-    ['f-problema','sel-problema']
-  ];
-  checks.forEach(([fid,sid])=>{
-    const valid=!!document.getElementById(sid).value;
-    document.getElementById(fid).classList.toggle('invalid',!valid);
+  ['recinto','lugar','item','problema'].forEach(key=>{
+    const valid=!!selected[key];
+    document.getElementById('f-'+key).classList.toggle('invalid',!valid);
     if(!valid)ok=false;
   });
   const desc=document.getElementById('in-desc').value.trim();
@@ -378,15 +427,14 @@ function validateReqForm(){
 function addRequerimiento(){
   if(!validateReqForm()){toast('Completa los campos obligatorios');return}
   requerimientos.push({
-    recinto:document.getElementById('sel-recinto').value,
-    lugar:document.getElementById('sel-lugar').value,
-    item:document.getElementById('sel-item').value,
-    problema:document.getElementById('sel-problema').value,
+    recinto:selected.recinto,
+    lugar:selected.lugar,
+    item:selected.item,
+    problema:selected.problema,
     descripcion:document.getElementById('in-desc').value.trim(),
     fotos:pendingPhotos.slice()
   });
-  document.getElementById('sel-recinto').value='';
-  onRecintoChange();
+  resetDropdowns();
   document.getElementById('in-desc').value='';
   pendingPhotos=[];
   renderPhotoStrip();
@@ -496,8 +544,7 @@ function resetForm(){
   document.getElementById('in-proyecto').value='';
   document.getElementById('in-unidad').value='';
   document.getElementById('in-desc').value='';
-  document.getElementById('sel-recinto').value='';
-  onRecintoChange();
+  resetDropdowns();
 }
 
 let historyCache=[];
