@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Postventa</title>
+<link rel="stylesheet" href="css/shared.css">
+<style>
+header{position:sticky;top:0;z-index:50;background:rgba(10,12,18,.97);
+  border-bottom:1px solid var(--border);padding:14px 18px;
+  display:flex;align-items:center;gap:12px;backdrop-filter:blur(12px)}
+.logo{font-family:var(--mo);font-size:15px;font-weight:700;color:#fff;flex:1;letter-spacing:.04em}
+.logo span{color:var(--b)}
+.hbtn{height:36px;padding:0 14px;border-radius:8px;border:none;font-family:var(--mo);font-size:10px;font-weight:700;letter-spacing:.05em;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s;background:rgba(255,255,255,.07);color:rgba(255,255,255,.7);border:1px solid var(--border)}
+.hbtn:hover{background:rgba(255,255,255,.12)}
+
+.wrap{max-width:640px;margin:0 auto;padding:16px 16px 100px}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px}
+.card-t{font-size:14px;font-weight:700;color:#fff;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card-t .n{width:20px;height:20px;border-radius:50%;background:var(--b);color:#0a0c12;font-family:var(--mo);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+@media(max-width:480px){.row{grid-template-columns:1fr}}
+.field{margin-bottom:10px}
+.field:last-child{margin-bottom:0}
+.hint{font-family:var(--mo);font-size:9px;color:var(--muted);margin-top:4px}
+.err{font-family:var(--mo);font-size:9px;color:var(--r);margin-top:4px;display:none}
+.field.invalid select,.field.invalid input,.field.invalid textarea,.field.invalid .ddown-btn{border-color:var(--r)}
+.field.invalid .err{display:block}
+
+select:disabled{opacity:.35;cursor:not-allowed}
+
+.ddown{position:relative}
+.ddown-btn{background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;color:var(--text);
+  font-family:inherit;font-size:14px;padding:10px 12px;width:100%;outline:none;transition:border-color .15s;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left}
+.ddown-btn:focus{border-color:rgba(91,184,245,.5)}
+.ddown-btn:disabled{opacity:.35;cursor:not-allowed}
+.ddown-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.ddown.has-value .ddown-label{color:var(--text)}
+.ddown-arrow{flex-shrink:0;font-size:11px;color:var(--muted);transition:transform .15s}
+.ddown.open .ddown-arrow{transform:rotate(180deg)}
+.ddown-panel{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:100;
+  background:rgba(17,21,32,.99);border:1px solid var(--border);border-radius:10px;
+  max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.ddown.open .ddown-panel{display:block}
+.ddown-opt{padding:10px 12px;font-size:13px;color:var(--text);cursor:pointer}
+.ddown-opt:hover{background:rgba(91,184,245,.12)}
+.ddown-opt.selected{background:rgba(91,184,245,.18);color:var(--b);font-weight:700}
+
+.photo-strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.photo-thumb{position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-thumb .rm{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;font-size:10px;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.photo-add{width:64px;height:64px;border-radius:8px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--muted);cursor:pointer;flex-shrink:0}
+.photo-add:hover{border-color:rgba(91,184,245,.5);color:var(--b)}
+
+.btn-add{width:100%;background:var(--r);color:#fff;border:none;border-radius:9px;padding:13px;font-family:var(--mo);font-size:11px;font-weight:700;letter-spacing:.05em;margin-top:14px;transition:opacity .15s}
+.btn-add:hover{opacity:.85}
+
+.req-item{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start}
+.req-item .idx{width:22px;height:22px;border-radius:50%;background:rgba(91,184,245,.15);color:var(--b);font-family:var(--mo);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.req-item .body{flex:1;min-width:0}
+.req-item .path{font-family:var(--mo);font-size:9px;color:var(--muted);letter-spacing:.03em;margin-bottom:3px;word-break:break-word}
+.req-item .prob{font-size:13px;color:#fff;font-weight:700}
+.req-item .desc{font-size:12px;color:rgba(255,255,255,.6);margin-top:4px;line-height:1.4}
+.req-item .thumbs{display:flex;gap:5px;margin-top:8px}
+.req-item .thumbs img{width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border)}
+.req-item .del{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;flex-shrink:0}
+.req-item .del:hover{color:var(--r)}
+
+.empty-mini{text-align:center;padding:24px 10px;font-family:var(--mo);font-size:10px;color:var(--muted);line-height:1.7}
+
+.summary-bar{position:fixed;bottom:0;left:0;right:0;z-index:60;background:rgba(10,12,18,.97);
+  border-top:1px solid var(--border);padding:12px 16px;backdrop-filter:blur(12px);
+  display:flex;align-items:center;gap:12px}
+.summary-bar .count{font-family:var(--mo);font-size:10px;color:var(--muted);flex-shrink:0}
+.summary-bar .count b{color:#fff;font-size:14px}
+.summary-bar .send{flex:1;background:var(--b);color:#0a0c12;border:none;border-radius:9px;padding:13px;font-family:var(--mo);font-size:11px;font-weight:700;letter-spacing:.05em}
+.summary-bar .send:disabled{opacity:.3;cursor:not-allowed}
+
+.modal-bg{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-bg.open{opacity:1;pointer-events:all}
+.modal{background:rgba(11,14,22,.99);border-radius:18px 18px 0 0;width:100%;max-width:480px;
+  padding:20px 22px 32px;transform:translateY(30px);transition:transform .3s cubic-bezier(.4,0,.2,1);
+  border-top:1px solid var(--border);backdrop-filter:blur(18px);max-height:85vh;overflow-y:auto}
+.modal-bg.open .modal{transform:translateY(0)}
+.modal-handle{width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.15);margin:0 auto 18px}
+.modal-t{font-size:17px;font-weight:700;color:#fff;margin-bottom:6px}
+.modal-s{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.35);margin-bottom:20px;line-height:1.7}
+.modal-row{display:flex;gap:10px;margin-top:14px}
+.modal-btn{flex:1;padding:13px;border-radius:10px;border:none;font-family:var(--mo);font-size:10px;font-weight:700;letter-spacing:.05em;cursor:pointer}
+.modal-btn-p{background:var(--b);color:#0a0c12}
+.modal-btn-g{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6);border:1px solid var(--border)}
+.folio{font-family:var(--mo);font-size:22px;font-weight:700;color:var(--g);text-align:center;margin:16px 0;letter-spacing:.05em}
+
+.history-item{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer}
+.history-item:hover{border-color:rgba(91,184,245,.3)}
+.history-item .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.history-item .folio-s{font-family:var(--mo);font-size:11px;font-weight:700;color:var(--b)}
+.history-item .date{font-family:var(--mo);font-size:9px;color:var(--muted)}
+.history-item .proj{font-size:12px;color:rgba(255,255,255,.7)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Post<span>venta</span></div>
+  <button class="hbtn" onclick="openHistory()">📋 Mis solicitudes</button>
+</header>
+
+<div class="wrap">
+
+  <div class="card">
+    <div class="card-t"><span class="n">1</span> Agregar requerimiento</div>
+
+    <div class="field" id="f-recinto">
+      <label>Recinto *</label>
+      <div class="ddown" id="dd-recinto">
+        <button type="button" class="ddown-btn" onclick="toggleDropdown('recinto')">
+          <span class="ddown-label" id="dd-recinto-label">Selecciona un recinto…</span>
+          <span class="ddown-arrow">▾</span>
+        </button>
+        <div class="ddown-panel" id="dd-recinto-panel"></div>
+      </div>
+      <div class="err">Selecciona un recinto</div>
+    </div>
+
+    <div class="field" id="f-lugar">
+      <label>Lugar *</label>
+      <div class="ddown" id="dd-lugar" data-disabled="true">
+        <button type="button" class="ddown-btn" onclick="toggleDropdown('lugar')" disabled>
+          <span class="ddown-label" id="dd-lugar-label">Selecciona un recinto primero…</span>
+          <span class="ddown-arrow">▾</span>
+        </button>
+        <div class="ddown-panel" id="dd-lugar-panel"></div>
+      </div>
+      <div class="err">Selecciona un lugar</div>
+    </div>
+
+    <div class="row">
+      <div class="field" id="f-item">
+        <label>Ítem *</label>
+        <div class="ddown" id="dd-item" data-disabled="true">
+          <button type="button" class="ddown-btn" onclick="toggleDropdown('item')" disabled>
+            <span class="ddown-label" id="dd-item-label">Selecciona un lugar primero…</span>
+            <span class="ddown-arrow">▾</span>
+          </button>
+          <div class="ddown-panel" id="dd-item-panel"></div>
+        </div>
+        <div class="err">Selecciona un ítem</div>
+      </div>
+      <div class="field" id="f-problema">
+        <label>Problema *</label>
+        <div class="ddown" id="dd-problema" data-disabled="true">
+          <button type="button" class="ddown-btn" onclick="toggleDropdown('problema')" disabled>
+            <span class="ddown-label" id="dd-problema-label">Selecciona un ítem primero…</span>
+            <span class="ddown-arrow">▾</span>
+          </button>
+          <div class="ddown-panel" id="dd-problema-panel"></div>
+        </div>
+        <div class="err">Selecciona un problema</div>
+      </div>
+    </div>
+
+    <div class="field" id="f-desc">
+      <label>Descripción *</label>
+      <textarea id="in-desc" rows="3" placeholder="Describe el problema con el mayor detalle posible…"></textarea>
+      <div class="err">Describe el problema</div>
+    </div>
+
+    <div class="field">
+      <label>Fotos (opcional)</label>
+      <div class="photo-strip" id="photo-strip">
+        <div class="photo-add" onclick="document.getElementById('photo-input').click()">📷</div>
+      </div>
+      <input type="file" id="photo-input" accept="image/*" multiple capture="environment" style="display:none" onchange="onPhotosSelected(event)">
+      <div class="hint">Las imágenes se comprimen automáticamente antes de guardarse.</div>
+    </div>
+
+    <button class="btn-add" onclick="addRequerimiento()">＋ Agregar requerimiento</button>
+  </div>
+
+  <div class="card" id="lista-card" style="display:none">
+    <div class="card-t"><span class="n">2</span> Requerimientos agregados</div>
+    <div id="req-list"></div>
+  </div>
+
+  <div class="card" id="empty-card">
+    <div class="empty-mini">Aún no has agregado ningún requerimiento.<br>Completa el formulario de arriba y presiona «Agregar requerimiento».</div>
+  </div>
+
+</div>
+
+<div class="summary-bar">
+  <div class="count"><b id="req-count">0</b> req.</div>
+  <button class="send" id="btn-send" onclick="openConfirm()" disabled>Enviar solicitud</button>
+</div>
+
+<!-- Confirm modal -->
+<div class="modal-bg" id="confirm-modal" onclick="closeConfirm()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-t">Confirmar envío</div>
+    <div class="modal-s" id="confirm-summary"></div>
+    <div class="modal-row">
+      <button class="modal-btn modal-btn-g" onclick="closeConfirm()">Revisar</button>
+      <button class="modal-btn modal-btn-p" onclick="sendSolicitud()">Enviar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Done modal -->
+<div class="modal-bg" id="done-modal">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-t">¡Solicitud enviada!</div>
+    <div class="modal-s">Tu número de folio es:</div>
+    <div class="folio" id="done-folio"></div>
+    <div class="modal-s">Guarda este folio para hacer seguimiento. También quedó guardado en «Mis solicitudes» en este dispositivo.</div>
+    <div class="modal-row">
+      <button class="modal-btn modal-btn-g" onclick="closeDoneAndDownload()">⬇ Descargar</button>
+      <button class="modal-btn modal-btn-p" onclick="closeDoneAndReset()">Listo</button>
+    </div>
+  </div>
+</div>
+
+<!-- History modal -->
+<div class="modal-bg" id="history-modal" onclick="closeHistory()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-t">📋 Mis solicitudes</div>
+    <div class="modal-s">Solicitudes enviadas desde este dispositivo.</div>
+    <div id="history-list"></div>
+    <div class="modal-row">
+      <button class="modal-btn modal-btn-g" onclick="closeHistory()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const LS={
+  get:(k,d=null)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+};
+
+let tt_=null;
+function toast(m){
+  const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');
+  if(tt_)clearTimeout(tt_);tt_=setTimeout(()=>t.classList.remove('on'),2800);
+}
+
+let ARBOL={};
+let requerimientos=[];
+let pendingPhotos=[];
+const selected={recinto:'',lugar:'',item:'',problema:''};
+const PLACEHOLDERS={
+  recinto:'Selecciona un recinto…',
+  lugar:'Selecciona un recinto primero…',
+  item:'Selecciona un lugar primero…',
+  problema:'Selecciona un ítem primero…'
+};
+
+fetch('data/postventa-arbol.json').then(r=>r.json()).then(data=>{
+  ARBOL=data;
+  setDropdownOptions('recinto',Object.keys(ARBOL),'Selecciona un recinto…');
+}).catch(()=>toast('No se pudo cargar el catálogo de recintos'));
+
+function setDropdownOptions(key,options,placeholder,enabled){
+  enabled=enabled===undefined?options.length>0:enabled;
+  const dd=document.getElementById('dd-'+key);
+  const btn=dd.querySelector('.ddown-btn');
+  const panel=document.getElementById('dd-'+key+'-panel');
+  btn.disabled=!enabled;
+  dd.dataset.disabled=(!enabled).toString();
+  panel.innerHTML='';
+  options.slice().sort().forEach(o=>{
+    const opt=document.createElement('div');
+    opt.className='ddown-opt'+(o===selected[key]?' selected':'');
+    opt.textContent=o;
+    opt.addEventListener('click',()=>selectDropdownOption(key,o));
+    panel.appendChild(opt);
+  });
+  if(!enabled||!options.includes(selected[key])){
+    selected[key]='';
+    document.getElementById('dd-'+key+'-label').textContent=placeholder;
+    dd.classList.remove('has-value');
+  }
+}
+
+function toggleDropdown(key){
+  const dd=document.getElementById('dd-'+key);
+  if(dd.dataset.disabled==='true')return;
+  const willOpen=!dd.classList.contains('open');
+  document.querySelectorAll('.ddown.open').forEach(d=>d.classList.remove('open'));
+  if(willOpen)dd.classList.add('open');
+}
+
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.ddown'))document.querySelectorAll('.ddown.open').forEach(d=>d.classList.remove('open'));
+});
+
+function selectDropdownOption(key,value){
+  selected[key]=value;
+  const dd=document.getElementById('dd-'+key);
+  dd.classList.remove('open');
+  dd.classList.add('has-value');
+  document.getElementById('dd-'+key+'-label').textContent=value;
+  clearField('f-'+key);
+  if(key==='recinto'){
+    setDropdownOptions('lugar',Object.keys(ARBOL[value]||{}),PLACEHOLDERS.lugar);
+    setDropdownOptions('item',[],PLACEHOLDERS.item,false);
+    setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+  }else if(key==='lugar'){
+    setDropdownOptions('item',Object.keys(ARBOL[selected.recinto][value]||{}),PLACEHOLDERS.item);
+    setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+  }else if(key==='item'){
+    setDropdownOptions('problema',ARBOL[selected.recinto][selected.lugar][value]||[],PLACEHOLDERS.problema);
+  }
+}
+
+function resetDropdowns(){
+  setDropdownOptions('recinto',Object.keys(ARBOL),PLACEHOLDERS.recinto);
+  setDropdownOptions('lugar',[],PLACEHOLDERS.lugar,false);
+  setDropdownOptions('item',[],PLACEHOLDERS.item,false);
+  setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+}
+
+function clearField(id){document.getElementById(id).classList.remove('invalid')}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function onPhotosSelected(ev){
+  const files=Array.from(ev.target.files||[]);
+  ev.target.value='';
+  files.forEach(f=>{
+    const img=new Image();
+    const reader=new FileReader();
+    reader.onload=e=>{
+      img.onload=()=>{
+        const maxW=900;
+        const scale=Math.min(1,maxW/img.width);
+        const canvas=document.createElement('canvas');
+        canvas.width=img.width*scale;canvas.height=img.height*scale;
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        const dataUrl=canvas.toDataURL('image/jpeg',0.72);
+        pendingPhotos.push(dataUrl);
+        renderPhotoStrip();
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
+function renderPhotoStrip(){
+  const strip=document.getElementById('photo-strip');
+  strip.innerHTML=pendingPhotos.map((p,i)=>`
+    <div class="photo-thumb"><img src="${p}"><button class="rm" onclick="removePendingPhoto(${i})">✕</button></div>
+  `).join('')+`<div class="photo-add" onclick="document.getElementById('photo-input').click()">📷</div>`;
+}
+function removePendingPhoto(i){pendingPhotos.splice(i,1);renderPhotoStrip()}
+
+function validateReqForm(){
+  let ok=true;
+  ['recinto','lugar','item','problema'].forEach(key=>{
+    const valid=!!selected[key];
+    document.getElementById('f-'+key).classList.toggle('invalid',!valid);
+    if(!valid)ok=false;
+  });
+  const desc=document.getElementById('in-desc').value.trim();
+  document.getElementById('f-desc').classList.toggle('invalid',!desc);
+  if(!desc)ok=false;
+  return ok;
+}
+
+function addRequerimiento(){
+  if(!validateReqForm()){toast('Completa los campos obligatorios');return}
+  requerimientos.push({
+    recinto:selected.recinto,
+    lugar:selected.lugar,
+    item:selected.item,
+    problema:selected.problema,
+    descripcion:document.getElementById('in-desc').value.trim(),
+    fotos:pendingPhotos.slice()
+  });
+  resetDropdowns();
+  document.getElementById('in-desc').value='';
+  pendingPhotos=[];
+  renderPhotoStrip();
+  ['f-recinto','f-lugar','f-item','f-problema','f-desc'].forEach(clearField);
+  renderReqList();
+  toast('Requerimiento agregado');
+}
+
+function removeRequerimiento(i){
+  requerimientos.splice(i,1);
+  renderReqList();
+}
+
+function renderReqList(){
+  const listEl=document.getElementById('req-list');
+  const card=document.getElementById('lista-card');
+  const empty=document.getElementById('empty-card');
+  document.getElementById('req-count').textContent=requerimientos.length;
+  document.getElementById('btn-send').disabled=requerimientos.length===0;
+  if(!requerimientos.length){card.style.display='none';empty.style.display='';return}
+  empty.style.display='none';card.style.display='';
+  listEl.innerHTML=requerimientos.map((r,i)=>`
+    <div class="req-item">
+      <div class="idx">${i+1}</div>
+      <div class="body">
+        <div class="path">${escapeHtml(r.recinto)} › ${escapeHtml(r.lugar)} › ${escapeHtml(r.item)}</div>
+        <div class="prob">${escapeHtml(r.problema)}</div>
+        <div class="desc">${escapeHtml(r.descripcion)}</div>
+        ${r.fotos.length?`<div class="thumbs">${r.fotos.map(f=>`<img src="${f}">`).join('')}</div>`:''}
+      </div>
+      <button class="del" onclick="removeRequerimiento(${i})">🗑</button>
+    </div>
+  `).join('');
+}
+
+function openConfirm(){
+  if(!requerimientos.length){toast('Agrega al menos un requerimiento');return}
+  document.getElementById('confirm-summary').innerHTML=
+    `Se enviarán <b style="color:#fff">${requerimientos.length}</b> requerimiento(s) a postventa.`;
+  document.getElementById('confirm-modal').classList.add('open');
+}
+function closeConfirm(){document.getElementById('confirm-modal').classList.remove('open')}
+
+let lastFolio=null;
+function sendSolicitud(){
+  closeConfirm();
+  const folio='PV-'+Date.now().toString(36).toUpperCase();
+  const solicitud={
+    folio,
+    fecha:new Date().toISOString(),
+    requerimientos
+  };
+  const historial=LS.get('postventa_solicitudes',[]);
+  historial.unshift(solicitud);
+  LS.set('postventa_solicitudes',historial);
+  lastFolio=solicitud;
+  document.getElementById('done-folio').textContent=folio;
+  document.getElementById('done-modal').classList.add('open');
+}
+
+function closeDoneAndReset(){
+  document.getElementById('done-modal').classList.remove('open');
+  resetForm();
+}
+function closeDoneAndDownload(){
+  downloadSolicitud(lastFolio);
+}
+
+function downloadSolicitud(solicitud){
+  const blob=new Blob([JSON.stringify(solicitud,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=solicitud.folio+'.json';a.click();
+  URL.revokeObjectURL(url);
+}
+
+function resetForm(){
+  requerimientos=[];
+  pendingPhotos=[];
+  renderPhotoStrip();
+  renderReqList();
+  document.getElementById('in-desc').value='';
+  resetDropdowns();
+}
+
+let historyCache=[];
+function openHistory(){
+  historyCache=LS.get('postventa_solicitudes',[]);
+  const listEl=document.getElementById('history-list');
+  if(!historyCache.length){
+    listEl.innerHTML='<div class="empty-mini">Todavía no has enviado solicitudes.</div>';
+  }else{
+    listEl.innerHTML=historyCache.map((s,i)=>`
+      <div class="history-item" onclick="downloadSolicitud(historyCache[${i}])" title="Descargar">
+        <div class="top"><span class="folio-s">${s.folio}</span><span class="date">${new Date(s.fecha).toLocaleString()}</span></div>
+        <div class="proj">${s.requerimientos.length} requerimiento(s)</div>
+      </div>
+    `).join('');
+  }
+  document.getElementById('history-modal').classList.add('open');
+}
+function closeHistory(){document.getElementById('history-modal').classList.remove('open')}
+
+renderPhotoStrip();
+renderReqList();
+</script>
+</body>
+</html>
