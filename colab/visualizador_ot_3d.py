@@ -157,6 +157,29 @@ PLANTAS = {
             [(23.8, 0.5), (45.6, 0.5), (45.6, -35.3), (23.8, -35.3), (23.8, 0.5)],
         ],
     },
+    # Somma Parque Bustamante, lámina M10 (piso 3, escala 1:125): torre NORTE (deptos 1–8,
+    # bloque girado) y ORIENTE (deptos 9–17, bloque horizontal) en su posición real.
+    # Las etiquetas están junto al pasillo central de cada torre; cada punto se llevó al
+    # centro de su lado del pasillo. La torre NORTE de los pisos 20 a 25 (M27–M29) tiene
+    # la misma distribución.
+    "Somma Parque Bustamante": {
+        "escala": 3 / 28.5,
+        "unir_torres": True,
+        "deptos": {
+            ("NORTE", 1): (10.5, -2.4), ("NORTE", 2): (11.2, 1.9), ("NORTE", 3): (12.5, 9.0),
+            ("NORTE", 4): (13.5, 14.6), ("NORTE", 5): (22.6, 13.0), ("NORTE", 6): (20.7, 2.2),
+            ("NORTE", 7): (19.6, -3.6), ("NORTE", 8): (18.2, -11.7), ("ORIENTE", 9): (0.8, -18.6),
+            ("ORIENTE", 10): (-5.4, -18.6), ("ORIENTE", 11): (-13.8, -18.6), ("ORIENTE", 12): (-22.8, -18.6),
+            ("ORIENTE", 13): (-22.8, -11.0), ("ORIENTE", 14): (-15.8, -11.0), ("ORIENTE", 15): (-11.2, -11.0),
+            ("ORIENTE", 16): (-4.2, -11.0), ("ORIENTE", 17): (1.6, -11.0),
+        },
+        # Contorno de cada torre, solo en los pisos de esa torre
+        "torres_contorno": ["NORTE", "ORIENTE"],
+        "contornos": [
+            [(10.2, 22.4), (28.5, 19.1), (21.7, -18.2), (3.5, -14.9), (10.2, 22.4)],
+            [(-28.5, -7.1), (5.9, -7.1), (5.9, -22.4), (-28.5, -22.4), (-28.5, -7.1)],
+        ],
+    },
 }
 TODOS = "Todos"
 
