@@ -32,6 +32,7 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 COL_FECHA = "Creado"
 COL_UNIDAD = "unidad"
+COL_CLASE = "ESTADO CLASIFICACIÓN"  # opcional: habilita el filtro por clasificación
 MARGEN_EJES = 1.0          # margen estático de seguridad en X/Y/Z
 GRID_MIN, GRID_MAX = 3, 7  # grilla dinámica 3x3 … 7x7
 
@@ -73,6 +74,8 @@ def parsear_fecha(valor):
 
     s = str(valor).strip().lower()
     s = s.replace("\xa0", " ").replace(" ", " ")
+    # Quita la zona horaria final ('CLST', 'CLT', 'UTC'…) sin tocar am/pm
+    s = re.sub(r"\s+(?!(?:am|pm)$)[a-z]{3,5}$", "", s)
     # Normaliza variantes: 'a. m.', 'a.m.', 'a m', 'am' -> 'AM' (ídem p. m.)
     s = re.sub(r"\b(a)\s*\.?\s*(m)\s*\.?(?=\s|$)", "AM", s)
     s = re.sub(r"\b(p)\s*\.?\s*(m)\s*\.?(?=\s|$)", "PM", s)
@@ -102,26 +105,30 @@ def parsear_fecha(valor):
 
 def extraer_piso_depto(unidad):
     """
-    Extrae (Piso_Num, Depto_Num) de textos como '1204', 'Depto 1204',
-    'Torre A - 304', 'D-1204', '12-04'. Convención: los 2 últimos dígitos
-    son el departamento y los anteriores el piso.
+    Extrae (Torre, Piso_Num, Depto_Num) de textos como '1204', 'A-1305',
+    'NORTE-1403', 'B-B903', 'Santo Domingo-903' o '12-04'. Convención: los
+    2 últimos dígitos son el departamento y los anteriores el piso; el texto
+    antes del primer guion (si tiene letras) es la torre.
     """
     if pd.isna(unidad):
-        return (np.nan, np.nan)
+        return ("", np.nan, np.nan)
     s = str(unidad).strip()
     if re.fullmatch(r"\d+\.0", s):  # números leídos como float por Excel
         s = s[:-2]
+    torre = s.split("-")[0].strip() if "-" in s else ""
+    if not re.search(r"[^\W\d_]", torre):  # sin letras: no es nombre de torre
+        torre = ""
     # Formato explícito piso-depto (p.ej. '12-04')
     m = re.search(r"(\d{1,3})\s*[-/]\s*(\d{1,2})\s*$", s)
     if m:
-        return (int(m.group(1)), int(m.group(2)))
+        return (torre, int(m.group(1)), int(m.group(2)))
     grupos = re.findall(r"\d+", s)
     if not grupos:
-        return (np.nan, np.nan)
-    num = max(grupos, key=len)  # el bloque numérico más largo es el nº de unidad
+        return (torre, np.nan, np.nan)
+    num = grupos[-1]  # el último bloque numérico es el nº de unidad
     if len(num) >= 3:
-        return (int(num[:-2]), int(num[-2:]))
-    return (1, int(num))  # unidades de 1-2 dígitos: se asumen en piso 1
+        return (torre, int(num[:-2]), int(num[-2:]))
+    return (torre, 1, int(num))  # unidades de 1-2 dígitos: se asumen en piso 1
 
 
 def cargar_datos(ruta_excel):
@@ -139,7 +146,7 @@ def cargar_datos(ruta_excel):
         col_edificio = "Edificio"
 
     df["Fecha"] = df[col_fecha].apply(parsear_fecha)
-    df[["Piso_Num", "Depto_Num"]] = df[col_unidad].apply(
+    df[["Torre", "Piso_Num", "Depto_Num"]] = df[col_unidad].apply(
         lambda u: pd.Series(extraer_piso_depto(u)))
 
     filas_antes = len(df)
@@ -147,6 +154,13 @@ def cargar_datos(ruta_excel):
     df["Piso_Num"] = df["Piso_Num"].astype(int)
     df["Depto_Num"] = df["Depto_Num"].astype(int)
     df["Edificio"] = df[col_edificio].astype(str).str.strip()
+    # Edificios con varias torres: cada torre se trata como un edificio aparte
+    varias = df.groupby("Edificio")["Torre"].transform("nunique") > 1
+    df.loc[varias, "Edificio"] = (df.loc[varias, "Edificio"] + " · "
+                                  + df.loc[varias, "Torre"].replace("", "sin torre"))
+    col_clase = buscar_columna(df, COL_CLASE, ("clasificacion", "estado clasificacion"))
+    df["Clase"] = (df[col_clase].fillna("Sin clasificación").astype(str).str.strip()
+                   if col_clase else "Sin clasificación")
     df["Depto_ID"] = (df["Edificio"] + " | P" + df["Piso_Num"].astype(str)
                       + "-D" + df["Depto_Num"].astype(str).str.zfill(2))
     print(f"Registros válidos: {len(df)} de {filas_antes} "
@@ -192,13 +206,16 @@ def construir_modelo(df):
     rango_z = [float(deptos["Z"].min()) - MARGEN_EJES, float(deptos["Z"].max()) + MARGEN_EJES]
     span_z = rango_z[1] - rango_z[0]
 
-    # Cada OT se reduce a (índice de depto, día) para filtrar en el navegador
+    # Cada OT se reduce a (índice de depto, día, clase) para filtrar en el navegador
     idx_depto = {d: i for i, d in enumerate(deptos["Depto_ID"])}
+    clases = df["Clase"].value_counts().index.tolist()
+    idx_clase = {c: i for i, c in enumerate(clases)}
     dias = df["Fecha"].dt.normalize()
     fecha_0 = dias.min()
     ots = np.column_stack([
         df["Depto_ID"].map(idx_depto).to_numpy(),
         (dias - fecha_0).dt.days.to_numpy(),
+        df["Clase"].map(idx_clase).to_numpy(),
     ]).astype(int)
 
     return {
@@ -210,7 +227,8 @@ def construir_modelo(df):
             "y": deptos["Y"].astype(float).tolist(),
             "z": deptos["Z"].astype(int).tolist(),
         },
-        "ots": ots.ravel().tolist(),  # pares aplanados [depto, día, depto, día, …]
+        "ots": ots.ravel().tolist(),  # tríos aplanados [depto, día, clase, …]
+        "clases": clases,
         "fecha0": fecha_0.strftime("%Y-%m-%d"),
         "nDias": int((dias.max() - fecha_0).days) + 1,
         "rangoX": [-lim_xy, lim_xy],
@@ -280,6 +298,7 @@ __PLOTLY__
   <div class="fila">
     <label>Edificio <select id="selEdificio"></select></label>
     <label>Piso <select id="selPiso"></select></label>
+    <label>Clasificación <select id="selClase"></select></label>
     <div class="rango">
       <label>Fechas: <span id="textoFechas"></span></label>
       <div class="rango-pista">
@@ -311,6 +330,9 @@ function opciones(sel, valores, actual) {
 // Controles
 const edificios = [...new Set(D.edificio)].sort();
 opciones($('selEdificio'), edificios, TODOS);
+opciones($('selClase'), M.clases, TODOS);
+$('selClase').hidden = M.clases.length < 2;
+$('selClase').parentElement.hidden = M.clases.length < 2;
 function actualizarPisos() {
   const e = $('selEdificio').value;
   const pisos = [...new Set(D.piso.filter((_, i) => e === TODOS || D.edificio[i] === e))]
@@ -348,12 +370,13 @@ function actualizar() {
   $('textoFechas').textContent = fmt(a) + ' – ' + fmt(b);
 
   const e = $('selEdificio').value, p = $('selPiso').value;
+  const cl = $('selClase').value === TODOS ? -1 : M.clases.indexOf($('selClase').value);
   const visible = i => (e === TODOS || D.edificio[i] === e) && (p === TODOS || String(D.piso[i]) === p);
   const cuenta = new Int32Array(nDeptos);
   let nOt = 0;
-  for (let k = 0; k < M.ots.length; k += 2) {
+  for (let k = 0; k < M.ots.length; k += 3) {
     const i = M.ots[k], dia = M.ots[k + 1];
-    if (dia >= a && dia <= b && visible(i)) { cuenta[i]++; nOt++; }
+    if (dia >= a && dia <= b && (cl < 0 || M.ots[k + 2] === cl) && visible(i)) { cuenta[i]++; nOt++; }
   }
   const x = [], y = [], z = [], c = [], s = [], t = [];
   let max = 0;
@@ -376,6 +399,7 @@ function actualizar() {
 
 $('selEdificio').addEventListener('change', () => { actualizarPisos(); actualizar(); });
 $('selPiso').addEventListener('change', actualizar);
+$('selClase').addEventListener('change', actualizar);
 $('desde').addEventListener('input', actualizar);
 $('hasta').addEventListener('input', actualizar);
 

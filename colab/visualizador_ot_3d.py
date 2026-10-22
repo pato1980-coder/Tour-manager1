@@ -43,6 +43,7 @@ except ImportError:
 RUTA_EXCEL = "/content/OT_CLASIFICADAS_ARBOL (1).xlsx"
 COL_FECHA = "Creado"
 COL_UNIDAD = "unidad"
+COL_CLASE = "ESTADO CLASIFICACIÓN"  # opcional: habilita el filtro por clasificación
 MARGEN_EJES = 1.0          # margen estático de seguridad en X/Y/Z
 GRID_MIN, GRID_MAX = 3, 7  # grilla dinámica 3x3 … 7x7
 TODOS = "Todos"
@@ -99,6 +100,8 @@ def parsear_fecha(valor):
 
     s = str(valor).strip().lower()
     s = s.replace("\xa0", " ").replace(" ", " ")
+    # Quita la zona horaria final ('CLST', 'CLT', 'UTC'…) sin tocar am/pm
+    s = re.sub(r"\s+(?!(?:am|pm)$)[a-z]{3,5}$", "", s)
     # Normaliza variantes: 'a. m.', 'a.m.', 'a m', 'am' -> 'AM' (ídem p. m.)
     s = re.sub(r"\b(a)\s*\.?\s*(m)\s*\.?(?=\s|$)", "AM", s)
     s = re.sub(r"\b(p)\s*\.?\s*(m)\s*\.?(?=\s|$)", "PM", s)
@@ -131,29 +134,33 @@ df["Fecha"] = df[col_fecha].apply(parsear_fecha)
 
 def extraer_piso_depto(unidad):
     """
-    Extrae (Piso_Num, Depto_Num) de textos como '1204', 'Depto 1204',
-    'Torre A - 304', 'D-1204', '12-04'. Convención: los 2 últimos dígitos
-    son el departamento y los anteriores el piso.
+    Extrae (Torre, Piso_Num, Depto_Num) de textos como '1204', 'A-1305',
+    'NORTE-1403', 'B-B903', 'Santo Domingo-903' o '12-04'. Convención: los
+    2 últimos dígitos son el departamento y los anteriores el piso; el texto
+    antes del primer guion (si tiene letras) es la torre.
     """
     if pd.isna(unidad):
-        return (np.nan, np.nan)
+        return ("", np.nan, np.nan)
     s = str(unidad).strip()
     if re.fullmatch(r"\d+\.0", s):  # números leídos como float por Excel
         s = s[:-2]
+    torre = s.split("-")[0].strip() if "-" in s else ""
+    if not re.search(r"[^\W\d_]", torre):  # sin letras: no es nombre de torre
+        torre = ""
     # Formato explícito piso-depto (p.ej. '12-04')
     m = re.search(r"(\d{1,3})\s*[-/]\s*(\d{1,2})\s*$", s)
     if m:
-        return (int(m.group(1)), int(m.group(2)))
+        return (torre, int(m.group(1)), int(m.group(2)))
     grupos = re.findall(r"\d+", s)
     if not grupos:
-        return (np.nan, np.nan)
-    num = max(grupos, key=len)  # el bloque numérico más largo es el nº de unidad
+        return (torre, np.nan, np.nan)
+    num = grupos[-1]  # el último bloque numérico es el nº de unidad
     if len(num) >= 3:
-        return (int(num[:-2]), int(num[-2:]))
-    return (1, int(num))  # unidades de 1-2 dígitos: se asumen en piso 1
+        return (torre, int(num[:-2]), int(num[-2:]))
+    return (torre, 1, int(num))  # unidades de 1-2 dígitos: se asumen en piso 1
 
 
-df[["Piso_Num", "Depto_Num"]] = df[col_unidad].apply(
+df[["Torre", "Piso_Num", "Depto_Num"]] = df[col_unidad].apply(
     lambda u: pd.Series(extraer_piso_depto(u)))
 
 filas_antes = len(df)
@@ -161,6 +168,13 @@ df = df.dropna(subset=["Fecha", "Piso_Num", "Depto_Num"]).copy()
 df["Piso_Num"] = df["Piso_Num"].astype(int)
 df["Depto_Num"] = df["Depto_Num"].astype(int)
 df["Edificio"] = df[col_edificio].astype(str).str.strip()
+# Edificios con varias torres: cada torre se trata como un edificio aparte
+varias = df.groupby("Edificio")["Torre"].transform("nunique") > 1
+df.loc[varias, "Edificio"] = (df.loc[varias, "Edificio"] + " · "
+                              + df.loc[varias, "Torre"].replace("", "sin torre"))
+col_clase = buscar_columna(df, COL_CLASE, ("clasificacion", "estado clasificacion"))
+df["Clase"] = (df[col_clase].fillna("Sin clasificación").astype(str).str.strip()
+               if col_clase else "Sin clasificación")
 df["Depto_ID"] = (df["Edificio"] + " | P" + df["Piso_Num"].astype(str)
                   + "-D" + df["Depto_Num"].astype(str).str.zfill(2))
 print(f"Registros válidos: {len(df)} de {filas_antes} "
@@ -274,6 +288,10 @@ dd_piso = widgets.Dropdown(options=[TODOS], value=TODOS, description="Piso:",
 
 fechas = sorted(df["Fecha"].dt.normalize().unique())
 fechas = [pd.Timestamp(f) for f in fechas]
+clases = df["Clase"].value_counts().index.tolist()
+dd_clase = widgets.Dropdown(options=[TODOS] + clases, value=TODOS, description="Clasif.:",
+                            layout=widgets.Layout(width="300px",
+                                                  display="flex" if len(clases) > 1 else "none"))
 sl_fechas = widgets.SelectionRangeSlider(
     options=[(f.strftime("%d/%m/%Y"), f) for f in fechas],
     index=(0, len(fechas) - 1), description="Fechas:",
@@ -297,6 +315,8 @@ def actualizar_grafico(*_):
         m &= df["Edificio"] == dd_edificio.value
     if dd_piso.value != TODOS:
         m &= df["Piso_Num"] == int(dd_piso.value)
+    if dd_clase.value != TODOS:
+        m &= df["Clase"] == dd_clase.value
 
     # Densidad dentro del rango filtrado; posiciones y escalas siguen fijas
     sub = (df[m].groupby(["Depto_ID", "Edificio", "Piso_Num", "Depto_Num", "X", "Y", "Z"])
@@ -324,6 +344,7 @@ def actualizar_grafico(*_):
 
 dd_edificio.observe(lambda ch: (actualizar_pisos(), actualizar_grafico()), names="value")
 dd_piso.observe(actualizar_grafico, names="value")
+dd_clase.observe(actualizar_grafico, names="value")
 sl_fechas.observe(actualizar_grafico, names="value")
 
 # ---------------------------------------------------------------------------
@@ -436,7 +457,7 @@ btn_fullscreen = widgets.HTML(
 # ---------------------------------------------------------------------------
 # 8. ENSAMBLE Y DESPLIEGUE
 # ---------------------------------------------------------------------------
-fila_filtros = widgets.HBox([dd_edificio, dd_piso, btn_fullscreen],
+fila_filtros = widgets.HBox([dd_edificio, dd_piso, dd_clase, btn_fullscreen],
                             layout=widgets.Layout(align_items="center", gap="12px"))
 panel = widgets.VBox([fila_filtros, sl_fechas, lbl_resumen, fig])
 panel.add_class("ot-viz-container")
