@@ -51,13 +51,14 @@ MARGEN_EJES = 1.0          # margen estático de seguridad en X/Y/Z
 GRID_MIN, GRID_MAX = 3, 7  # grilla dinámica 3x3 … 7x7
 
 # Posiciones reales según planos de arquitectura (metros desde el centro de la planta,
-# X hacia la derecha y Y hacia arriba de la lámina). Los edificios que no aparecen
-# aquí usan la grilla cuadrada genérica.
-M_A_GRILLA = 3 / 16.8  # 1 unidad de grilla ≈ 5,6 m: la planta de 33,6 m cabe en ±3
+# X hacia la derecha y Y hacia arriba de la lámina). "escala" pasa metros a unidades
+# de grilla para que cada planta quepa en ±3. Los edificios que no aparecen aquí
+# usan la grilla cuadrada genérica.
 PLANTAS = {
     # Somma Asturias, láminas MP-PG-110 (piso 3), 111 (pisos 4–15) y 112 (pisos 16–18):
     # 12 deptos por piso en anillo alrededor del núcleo de ascensores y escalera.
     "Somma Asturias": {
+        "escala": 3 / 16.8,
         "deptos": {
             9: (-13.2, 10.0), 11: (-4.8, 10.5), 12: (4.8, 10.5), 10: (13.2, 10.0),
             7: (-12.4, 2.85), 8: (12.4, 2.85),
@@ -68,6 +69,37 @@ PLANTAS = {
         "contornos": [
             [(-16.8, 13.4), (16.8, 13.4), (16.8, -13.3), (-16.8, -13.3), (-16.8, 13.4)],
             [(-8.4, 6.3), (8.4, 6.3), (8.4, -6.4), (-8.4, -6.4), (-8.4, 6.3)],
+        ],
+    },
+    # Somma Las Clarisas, láminas LC A006 (piso 2), A007 (piso 3) y A008 (pisos 4–10),
+    # escala 1:100. Torres A (bloque recto + inicio de la curva) y B (ala curva) en una
+    # misma planta, por eso las claves son (torre, depto). Posiciones tomadas de las
+    # etiquetas N° de la lámina del piso 3.
+    "Somma Las Clarisas": {
+        "escala": 3 / 31.4,
+        "unir_torres": True,
+        "deptos": {
+            ("A", 1): (-2.6, 13.2), ("A", 2): (3.5, 18.9), ("A", 3): (6.2, 21.4),
+            ("A", 4): (12.8, 25.7), ("A", 5): (21.0, 31.4), ("A", 6): (20.7, 23.0),
+            ("A", 7): (18.3, 19.4), ("A", 8): (18.3, 15.9), ("A", 9): (18.3, 12.5),
+            ("A", 10): (20.6, 7.1), ("A", 11): (8.8, 8.6), ("A", 12): (5.9, 6.9),
+            ("B", 1): (-21.0, -29.3), ("B", 2): (-20.2, -23.6), ("B", 3): (-18.7, -15.7),
+            ("B", 4): (-17.7, -12.3), ("B", 5): (-14.2, -4.6), ("B", 6): (-12.7, -1.7),
+            ("B", 7): (-8.4, 5.4), ("B", 8): (-6.5, 8.1), ("B", 9): (2.5, 2.1),
+            ("B", 10): (1.0, -4.1), ("B", 11): (-2.1, -7.6), ("B", 12): (-2.4, -11.3),
+            ("B", 13): (-2.6, -14.5), ("B", 14): (-3.2, -18.3), ("B", 15): (-3.2, -21.7),
+            ("B", 16): (0.5, -31.4), ("B", 17): (-3.4, -31.1), ("B", 18): (-7.2, -30.9),
+            ("B", 19): (-10.2, -30.6), ("B", 20): (-14.3, -30.1),
+        },
+        # Recorrido de cada torre uniendo sus deptos en orden (anillo alrededor del patio)
+        "contornos": [
+            [(-2.6, 13.2), (3.5, 18.9), (6.2, 21.4), (12.8, 25.7), (21.0, 31.4), (20.7, 23.0),
+             (18.3, 19.4), (18.3, 15.9), (18.3, 12.5), (20.6, 7.1), (8.8, 8.6), (5.9, 6.9),
+             (-2.6, 13.2)],
+            [(-21.0, -29.3), (-20.2, -23.6), (-18.7, -15.7), (-17.7, -12.3), (-14.2, -4.6),
+             (-12.7, -1.7), (-8.4, 5.4), (-6.5, 8.1), (2.5, 2.1), (1.0, -4.1), (-2.1, -7.6),
+             (-2.4, -11.3), (-2.6, -14.5), (-3.2, -18.3), (-3.2, -21.7), (0.5, -31.4),
+             (-3.4, -31.1), (-7.2, -30.9), (-10.2, -30.6), (-14.3, -30.1), (-21.0, -29.3)],
         ],
     },
 }
@@ -194,7 +226,9 @@ df["Piso_Num"] = df["Piso_Num"].astype(int)
 df["Depto_Num"] = df["Depto_Num"].astype(int)
 df["Edificio"] = df[col_edificio].astype(str).str.strip()
 # Edificios con varias torres: cada torre se trata como un edificio aparte
-varias = df.groupby("Edificio")["Torre"].transform("nunique") > 1
+# (salvo los que tienen plano con las torres juntas, que se muestran en una sola planta)
+juntas = df["Edificio"].isin([e for e, p in PLANTAS.items() if p.get("unir_torres")])
+varias = (df.groupby("Edificio")["Torre"].transform("nunique") > 1) & ~juntas
 df.loc[varias, "Edificio"] = (df.loc[varias, "Edificio"] + " · "
                               + df.loc[varias, "Torre"].replace("", "sin torre"))
 col_clase = buscar_columna(df, COL_CLASE, ("clasificacion", "estado clasificacion"))
@@ -203,13 +237,15 @@ df["Clase"] = (df[col_clase].fillna("Sin clasificación").astype(str).str.strip(
 col_tipo = buscar_columna(df, COL_TIPO, ("item", "tipo falla"))
 df["Tipo"] = (df[col_tipo].fillna(SIN_TIPO).astype(str).str.strip().replace("", SIN_TIPO)
               if col_tipo else SIN_TIPO)
-df["Depto_ID"] = (df["Edificio"] + " | P" + df["Piso_Num"].astype(str)
+df["Depto_Txt"] = np.where(juntas, "Torre " + df["Torre"] + " · Depto ", "Depto ") \
+    + df["Depto_Num"].astype(str)
+df["Depto_ID"] = (df["Edificio"] + " | " + df["Torre"] + " | P" + df["Piso_Num"].astype(str)
                   + "-D" + df["Depto_Num"].astype(str).str.zfill(2))
 print(f"Registros válidos: {len(df)} de {filas_antes} "
       f"({filas_antes - len(df)} descartados por fecha/unidad inválida)")
 
 # Densidad acumulada de fallas por departamento único (todo el conjunto)
-deptos = (df.groupby(["Depto_ID", "Edificio", "Piso_Num", "Depto_Num"])
+deptos = (df.groupby(["Depto_ID", "Edificio", "Torre", "Piso_Num", "Depto_Num", "Depto_Txt"])
             .size().reset_index(name="Densidad_Total"))
 
 # ---------------------------------------------------------------------------
@@ -227,10 +263,11 @@ def tamano_grilla(n):
 def asignar_coordenadas(grupo):
     grupo = grupo.sort_values("Depto_Num").copy()
     plano = PLANTAS.get(grupo["Edificio"].iloc[0])
-    if plano and grupo["Depto_Num"].isin(list(plano["deptos"])).all():
-        xy = grupo["Depto_Num"].map(plano["deptos"])
-        grupo["X"] = [p[0] * M_A_GRILLA for p in xy]
-        grupo["Y"] = [p[1] * M_A_GRILLA for p in xy]
+    claves = (list(zip(grupo["Torre"], grupo["Depto_Num"])) if plano and plano.get("unir_torres")
+              else list(grupo["Depto_Num"]))
+    if plano and all(k in plano["deptos"] for k in claves):
+        grupo["X"] = [plano["deptos"][k][0] * plano["escala"] for k in claves]
+        grupo["Y"] = [plano["deptos"][k][1] * plano["escala"] for k in claves]
         grupo["Grid_Size"] = 0  # posición según plano, no grilla
         return grupo
     grid_size = tamano_grilla(len(grupo))
@@ -408,14 +445,14 @@ def actualizar_grafico(*_):
         m &= df["Clase"] == dd_clase.value
 
     # Densidad dentro del rango filtrado; posiciones y escalas siguen fijas
-    sub = (df[m].groupby(["Depto_ID", "Edificio", "Piso_Num", "Depto_Num", "X", "Y", "Z"])
+    sub = (df[m].groupby(["Depto_ID", "Edificio", "Piso_Num", "Depto_Num", "Depto_Txt", "X", "Y", "Z"])
                .size().reset_index(name="Densidad"))
     estado["puntos"] = sub["Depto_ID"].tolist()
     if estado["abierto"] not in estado["puntos"]:
         estado["abierto"] = None  # el filtro dejó fuera al depto abierto
     abierto = estado["abierto"]
 
-    textos = [f"<b>{r.Edificio}</b><br>Piso {r.Piso_Num} · Depto {r.Depto_Num}"
+    textos = [f"<b>{r.Edificio}</b><br>Piso {r.Piso_Num} · {r.Depto_Txt}"
               f"<br>Fallas en rango: <b>{r.Densidad}</b>"
               for r in sub.itertuples()]
 
@@ -454,8 +491,8 @@ def dibujar_contorno():
             pisos = [z for z in pisos if z == int(dd_piso.value)]
         for z in pisos:
             for c in plano["contornos"]:
-                lx += [x * M_A_GRILLA for x, _ in c] + [None]
-                ly += [y * M_A_GRILLA for _, y in c] + [None]
+                lx += [x * plano["escala"] for x, _ in c] + [None]
+                ly += [y * plano["escala"] for _, y in c] + [None]
                 lz += [int(z)] * len(c) + [None]
     fig.data[4].x, fig.data[4].y, fig.data[4].z = lx, ly, lz
 
@@ -478,7 +515,7 @@ def dibujar_molecula(ots_depto):
         sx.append(cx + dx); sy.append(cy + dy); sz.append(cz + dz)
     enlaces.x, enlaces.y, enlaces.z = lx, ly, lz
     nucleo.x, nucleo.y, nucleo.z = [cx], [cy], [cz]
-    nucleo.text = [f"<b>{r0['Edificio']}</b><br>Piso {r0['Piso_Num']} · Depto {r0['Depto_Num']}"]
+    nucleo.text = [f"<b>{r0['Edificio']}</b><br>Piso {r0['Piso_Num']} · {r0['Depto_Txt']}"]
     subs.x, subs.y, subs.z = sx, sy, sz
     subs.marker.size = [12 + 26 * math.sqrt(n / max_n) for n in conteo]
     subs.marker.color = [COLOR_TIPO[t] for t in conteo.index]
@@ -493,7 +530,7 @@ def dibujar_molecula(ots_depto):
     html_leyenda.value = (
         f"<div style='color:#ddd;font-size:13px'><div style='color:#fff;font-weight:600'>"
         f"{r0['Edificio']}</div><div style='color:#9aa0a6;font-size:12px;margin-bottom:8px'>"
-        f"Piso {r0['Piso_Num']} · Depto {r0['Depto_Num']} · {len(ots_depto)} OT por tipo</div>"
+        f"Piso {r0['Piso_Num']} · {r0['Depto_Txt']} · {len(ots_depto)} OT por tipo</div>"
         f"{filas}<div style='color:#777;font-size:11px;margin-top:8px'>"
         f"Doble clic en otra burbuja para cambiar</div></div>")
     caja_leyenda.layout.display = "flex"

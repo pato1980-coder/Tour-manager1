@@ -46,13 +46,14 @@ COLORES_TIPO = [
 COLOR_SIN_TIPO = "#8A8F98"
 
 # Posiciones reales según planos de arquitectura (metros desde el centro de la planta,
-# X hacia la derecha y Y hacia arriba de la lámina). Los edificios que no aparecen
-# aquí usan la grilla cuadrada genérica.
-M_A_GRILLA = 3 / 16.8  # 1 unidad de grilla ≈ 5,6 m: la planta de 33,6 m cabe en ±3
+# X hacia la derecha y Y hacia arriba de la lámina). "escala" pasa metros a unidades
+# de grilla para que cada planta quepa en ±3. Los edificios que no aparecen aquí
+# usan la grilla cuadrada genérica.
 PLANTAS = {
     # Somma Asturias, láminas MP-PG-110 (piso 3), 111 (pisos 4–15) y 112 (pisos 16–18):
     # 12 deptos por piso en anillo alrededor del núcleo de ascensores y escalera.
     "Somma Asturias": {
+        "escala": 3 / 16.8,
         "deptos": {
             9: (-13.2, 10.0), 11: (-4.8, 10.5), 12: (4.8, 10.5), 10: (13.2, 10.0),
             7: (-12.4, 2.85), 8: (12.4, 2.85),
@@ -63,6 +64,37 @@ PLANTAS = {
         "contornos": [
             [(-16.8, 13.4), (16.8, 13.4), (16.8, -13.3), (-16.8, -13.3), (-16.8, 13.4)],
             [(-8.4, 6.3), (8.4, 6.3), (8.4, -6.4), (-8.4, -6.4), (-8.4, 6.3)],
+        ],
+    },
+    # Somma Las Clarisas, láminas LC A006 (piso 2), A007 (piso 3) y A008 (pisos 4–10),
+    # escala 1:100. Torres A (bloque recto + inicio de la curva) y B (ala curva) en una
+    # misma planta, por eso las claves son (torre, depto). Posiciones tomadas de las
+    # etiquetas N° de la lámina del piso 3.
+    "Somma Las Clarisas": {
+        "escala": 3 / 31.4,
+        "unir_torres": True,
+        "deptos": {
+            ("A", 1): (-2.6, 13.2), ("A", 2): (3.5, 18.9), ("A", 3): (6.2, 21.4),
+            ("A", 4): (12.8, 25.7), ("A", 5): (21.0, 31.4), ("A", 6): (20.7, 23.0),
+            ("A", 7): (18.3, 19.4), ("A", 8): (18.3, 15.9), ("A", 9): (18.3, 12.5),
+            ("A", 10): (20.6, 7.1), ("A", 11): (8.8, 8.6), ("A", 12): (5.9, 6.9),
+            ("B", 1): (-21.0, -29.3), ("B", 2): (-20.2, -23.6), ("B", 3): (-18.7, -15.7),
+            ("B", 4): (-17.7, -12.3), ("B", 5): (-14.2, -4.6), ("B", 6): (-12.7, -1.7),
+            ("B", 7): (-8.4, 5.4), ("B", 8): (-6.5, 8.1), ("B", 9): (2.5, 2.1),
+            ("B", 10): (1.0, -4.1), ("B", 11): (-2.1, -7.6), ("B", 12): (-2.4, -11.3),
+            ("B", 13): (-2.6, -14.5), ("B", 14): (-3.2, -18.3), ("B", 15): (-3.2, -21.7),
+            ("B", 16): (0.5, -31.4), ("B", 17): (-3.4, -31.1), ("B", 18): (-7.2, -30.9),
+            ("B", 19): (-10.2, -30.6), ("B", 20): (-14.3, -30.1),
+        },
+        # Recorrido de cada torre uniendo sus deptos en orden (anillo alrededor del patio)
+        "contornos": [
+            [(-2.6, 13.2), (3.5, 18.9), (6.2, 21.4), (12.8, 25.7), (21.0, 31.4), (20.7, 23.0),
+             (18.3, 19.4), (18.3, 15.9), (18.3, 12.5), (20.6, 7.1), (8.8, 8.6), (5.9, 6.9),
+             (-2.6, 13.2)],
+            [(-21.0, -29.3), (-20.2, -23.6), (-18.7, -15.7), (-17.7, -12.3), (-14.2, -4.6),
+             (-12.7, -1.7), (-8.4, 5.4), (-6.5, 8.1), (2.5, 2.1), (1.0, -4.1), (-2.1, -7.6),
+             (-2.4, -11.3), (-2.6, -14.5), (-3.2, -18.3), (-3.2, -21.7), (0.5, -31.4),
+             (-3.4, -31.1), (-7.2, -30.9), (-10.2, -30.6), (-14.3, -30.1), (-21.0, -29.3)],
         ],
     },
 }
@@ -188,7 +220,9 @@ def cargar_datos(ruta_excel):
     df["Depto_Num"] = df["Depto_Num"].astype(int)
     df["Edificio"] = df[col_edificio].astype(str).str.strip()
     # Edificios con varias torres: cada torre se trata como un edificio aparte
-    varias = df.groupby("Edificio")["Torre"].transform("nunique") > 1
+    # (salvo los que tienen plano con las torres juntas, que se muestran en una sola planta)
+    juntas = df["Edificio"].isin([e for e, p in PLANTAS.items() if p.get("unir_torres")])
+    varias = (df.groupby("Edificio")["Torre"].transform("nunique") > 1) & ~juntas
     df.loc[varias, "Edificio"] = (df.loc[varias, "Edificio"] + " · "
                                   + df.loc[varias, "Torre"].replace("", "sin torre"))
     col_clase = buscar_columna(df, COL_CLASE, ("clasificacion", "estado clasificacion"))
@@ -197,7 +231,9 @@ def cargar_datos(ruta_excel):
     col_tipo = buscar_columna(df, COL_TIPO, ("item", "tipo falla"))
     df["Tipo"] = (df[col_tipo].fillna(SIN_TIPO).astype(str).str.strip().replace("", SIN_TIPO)
                   if col_tipo else SIN_TIPO)
-    df["Depto_ID"] = (df["Edificio"] + " | P" + df["Piso_Num"].astype(str)
+    df["Depto_Txt"] = np.where(juntas, "Torre " + df["Torre"] + " · Depto ", "Depto ") \
+        + df["Depto_Num"].astype(str)
+    df["Depto_ID"] = (df["Edificio"] + " | " + df["Torre"] + " | P" + df["Piso_Num"].astype(str)
                       + "-D" + df["Depto_Num"].astype(str).str.zfill(2))
     print(f"Registros válidos: {len(df)} de {filas_antes} "
           f"({filas_antes - len(df)} descartados por fecha/unidad inválida)")
@@ -219,10 +255,11 @@ def tamano_grilla(n):
 def asignar_coordenadas(grupo):
     grupo = grupo.sort_values("Depto_Num").copy()
     plano = PLANTAS.get(grupo["Edificio"].iloc[0])
-    if plano and grupo["Depto_Num"].isin(list(plano["deptos"])).all():
-        xy = grupo["Depto_Num"].map(plano["deptos"])
-        grupo["X"] = [p[0] * M_A_GRILLA for p in xy]
-        grupo["Y"] = [p[1] * M_A_GRILLA for p in xy]
+    claves = (list(zip(grupo["Torre"], grupo["Depto_Num"])) if plano and plano.get("unir_torres")
+              else list(grupo["Depto_Num"]))
+    if plano and all(k in plano["deptos"] for k in claves):
+        grupo["X"] = [plano["deptos"][k][0] * plano["escala"] for k in claves]
+        grupo["Y"] = [plano["deptos"][k][1] * plano["escala"] for k in claves]
         grupo["Grid_Size"] = 0  # posición según plano, no grilla
         return grupo
     grid_size = tamano_grilla(len(grupo))
@@ -236,7 +273,7 @@ def asignar_coordenadas(grupo):
 
 def construir_modelo(df):
     # Densidad acumulada de fallas por departamento único (todo el conjunto)
-    deptos = (df.groupby(["Depto_ID", "Edificio", "Piso_Num", "Depto_Num"])
+    deptos = (df.groupby(["Depto_ID", "Edificio", "Torre", "Piso_Num", "Depto_Num", "Depto_Txt"])
                 .size().reset_index(name="Densidad_Total"))
     deptos = pd.concat(
         [asignar_coordenadas(g) for _, g in deptos.groupby(["Edificio", "Piso_Num"])],
@@ -275,7 +312,7 @@ def construir_modelo(df):
         "deptos": {
             "edificio": deptos["Edificio"].tolist(),
             "piso": deptos["Piso_Num"].astype(int).tolist(),
-            "depto": deptos["Depto_Num"].astype(int).tolist(),
+            "depto": deptos["Depto_Txt"].tolist(),
             "x": deptos["X"].astype(float).tolist(),
             "y": deptos["Y"].astype(float).tolist(),
             "z": deptos["Z"].astype(int).tolist(),
@@ -295,7 +332,7 @@ def construir_modelo(df):
         # Contornos de planta (en unidades de grilla) y pisos donde dibujarlos
         "plantas": {
             ed: {
-                "contornos": [[[x * M_A_GRILLA, y * M_A_GRILLA] for x, y in c]
+                "contornos": [[[x * p["escala"], y * p["escala"]] for x, y in c]
                               for c in p["contornos"]],
                 "pisos": sorted(deptos.loc[deptos["Edificio"] == ed, "Z"].astype(int).unique().tolist()),
             }
@@ -482,7 +519,7 @@ function trazasMolecula(i, porTipo) {
     { type: 'scatter3d', mode: 'lines', x: lx, y: ly, z: lz, hoverinfo: 'skip', showlegend: false,
       line: { color: '#9a9aae', width: 4 } },
     { type: 'scatter3d', mode: 'markers', x: [cx], y: [cy], z: [cz], showlegend: false,
-      text: [`<b>${esc(D.edificio[i])}</b><br>Piso ${D.piso[i]} · Depto ${D.depto[i]}`],
+      text: [`<b>${esc(D.edificio[i])}</b><br>Piso ${D.piso[i]} · ${esc(D.depto[i])}`],
       hovertemplate: '%{text}<extra></extra>',
       marker: { size: 18, color: '#ffffff', opacity: 1 } },
     { type: 'scatter3d', mode: 'markers+text', x: sx, y: sy, z: sz, text: st, hovertext: sh,
@@ -500,7 +537,7 @@ function mostrarLeyenda(i, porTipo) {
     .map(([t, n]) => `<li><span class="punto" style="background:${M.coloresTipo[t]}"></span>`
       + `<span>${esc(M.tipos[t])}</span><span class="n">${n}</span></li>`).join('');
   lg.innerHTML = `<h3>${esc(D.edificio[i])}</h3>`
-    + `<div class="sub">Piso ${D.piso[i]} · Depto ${D.depto[i]} · ${total} OT por tipo</div>`
+    + `<div class="sub">Piso ${D.piso[i]} · ${esc(D.depto[i])} · ${total} OT por tipo</div>`
     + `<ul>${filas}</ul>`
     + `<div class="pie"><span>Doble clic en otra burbuja para cambiar · Esc para cerrar</span>`
     + `<button type="button" id="cerrarLeyenda">Cerrar</button></div>`;
@@ -538,7 +575,7 @@ function actualizar() {
     if (!d) continue;
     puntoADepto.push(i);
     x.push(D.x[i]); y.push(D.y[i]); z.push(D.z[i]); c.push(d); s.push(tamano(d));
-    t.push(`<b>${D.edificio[i]}</b><br>Piso ${D.piso[i]} · Depto ${D.depto[i]}<br>Fallas en rango: <b>${d}</b>`);
+    t.push(`<b>${D.edificio[i]}</b><br>Piso ${D.piso[i]} · ${esc(D.depto[i])}<br>Fallas en rango: <b>${d}</b>`);
     max = Math.max(max, d);
   }
   const trazas = [{
