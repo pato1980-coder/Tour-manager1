@@ -698,6 +698,39 @@ sl_fechas = widgets.SelectionRangeSlider(
 )
 lbl_resumen = widgets.HTML()
 
+# Time lapse: cada OT queda activa VIDA_OT días desde su creación y luego se apaga.
+# Play trae sus propios botones de reproducir, pausa y detener.
+VIDA_OT = 30
+DIA0 = fechas[0]
+N_DIAS = (fechas[-1] - DIA0).days + 1
+df["Dia"] = (df["Fecha"].dt.normalize() - DIA0).dt.days
+tl_btn = widgets.ToggleButton(description="Time lapse (30 días por falla)", icon="play",
+                              layout=widgets.Layout(width="260px"))
+tl_play = widgets.Play(value=0, min=0, max=N_DIAS - 1, step=2, interval=200)
+tl_dia = widgets.IntSlider(value=0, min=0, max=N_DIAS - 1, readout=False,
+                           layout=widgets.Layout(width="360px"))
+widgets.jslink((tl_play, "value"), (tl_dia, "value"))
+tl_vel = widgets.Dropdown(options=[("5 días/s", 1), ("10 días/s", 2), ("20 días/s", 4), ("40 días/s", 8)],
+                          value=2, description="Velocidad:", layout=widgets.Layout(width="190px"))
+tl_lbl = widgets.HTML()
+tl_ctl = widgets.HBox([tl_play, tl_dia, tl_vel, tl_lbl],
+                      layout=widgets.Layout(display="none", align_items="center", gap="10px"))
+_cache_tl = {}
+
+
+def max_activas(m_rango, clave):
+    """Máximo de OT activas a la vez en un mismo depto: fija la escala del time lapse
+    para que no salte mientras se reproduce (se guarda por combinación de filtros)."""
+    if clave not in _cache_tl:
+        sub = df.loc[m_rango, ["Dia", "Depto_ID"]]
+        if sub.empty:
+            _cache_tl[clave] = 1
+        else:
+            tabla = sub.groupby(["Dia", "Depto_ID"]).size().unstack(fill_value=0)
+            tabla = tabla.reindex(range(tabla.index.min(), tabla.index.max() + 1), fill_value=0)
+            _cache_tl[clave] = int(max(1, tabla.rolling(VIDA_OT, min_periods=1).sum().to_numpy().max()))
+    return _cache_tl[clave]
+
 # Simbología del depto desplegado (oculta mientras no haya ninguno)
 html_leyenda = widgets.HTML()
 btn_cerrar = widgets.Button(description="Cerrar", layout=widgets.Layout(width="90px"))
@@ -728,6 +761,13 @@ def actualizar_grafico(*_):
     if dd_clase.value != TODOS:
         m &= df["Clase"] == dd_clase.value
 
+    # En el time lapse solo cuentan las OT creadas en los últimos VIDA_OT días
+    escala_tl = None
+    if tl_btn.value:
+        escala_tl = max_activas(m, (f_ini, f_fin, dd_edificio.value, dd_piso.value, dd_clase.value))
+        dia = DIA0 + pd.Timedelta(days=tl_dia.value)
+        m &= (df["Fecha"] >= dia - pd.Timedelta(days=VIDA_OT - 1)) & (df["Fecha"] < dia + pd.Timedelta(days=1))
+
     # Densidad dentro del rango filtrado; posiciones y escalas siguen fijas
     sub = (df[m].groupby(["Depto_ID", "Edificio", "Piso_Num", "Depto_Num", "Depto_Txt", "X", "Y", "Z"])
                .size().reset_index(name="Densidad"))
@@ -736,15 +776,19 @@ def actualizar_grafico(*_):
         estado["abierto"] = None  # el filtro dejó fuera al depto abierto
     abierto = estado["abierto"]
 
+    etiqueta = f"OT activas (últimos {VIDA_OT} días)" if escala_tl else "Fallas en rango"
     textos = [f"<b>{r.Edificio}</b><br>Piso {r.Piso_Num} · {r.Depto_Txt}"
-              f"<br>Fallas en rango: <b>{r.Densidad}</b>"
+              f"<br>{etiqueta}: <b>{r.Densidad}</b>"
               for r in sub.itertuples()]
 
     with fig.batch_update():
         t = fig.data[0]
         t.x, t.y, t.z = sub["X"].tolist(), sub["Y"].tolist(), sub["Z"].tolist()
-        t.marker.size = [tamano_marcador(d) for d in sub["Densidad"]]
+        t.marker.size = [6 + 26 * math.sqrt(d / escala_tl) if escala_tl else tamano_marcador(d)
+                         for d in sub["Densidad"]]
         t.marker.color = sub["Densidad"].tolist()
+        t.marker.cmax = escala_tl or DENSIDAD_MAX
+        t.marker.colorbar.title.text = "OT activas" if escala_tl else "Fallas"
         t.text = textos
         t.marker.opacity = 0.12 if abierto else 0.9  # oscurece el resto al desplegar
         dibujar_molecula(df[m & (df["Depto_ID"] == abierto)] if abierto else None)
@@ -754,6 +798,13 @@ def actualizar_grafico(*_):
         fig.layout.scene.yaxis.range = RANGO_Y
         fig.layout.scene.zaxis.range = RANGO_Z
 
+    if escala_tl:
+        tl_lbl.value = (f"<span style='color:#eee'>{dia:%d-%m-%Y} · {int(m.sum())} OT activas "
+                        f"en {len(sub)} deptos</span>")
+        lbl_resumen.value = (f"<span style='color:#9aa0a6'>Time lapse: cada OT se muestra {VIDA_OT} días "
+                             f"desde su creación y luego se apaga · escala fija hasta {escala_tl} OT "
+                             f"activas por depto</span>")
+        return
     lbl_resumen.value = (f"<span style='color:#9aa0a6'>{int(m.sum())} OT · "
                          f"{len(sub)} departamentos visibles · máx. "
                          f"{int(sub['Densidad'].max()) if len(sub) else 0} fallas/depto · "
@@ -857,6 +908,20 @@ fig.data[0].on_click(al_hacer_clic)
 fig.data[2].on_click(al_hacer_clic)
 btn_cerrar.on_click(cerrar_molecula)
 sl_fechas.observe(actualizar_grafico, names="value")
+
+
+def alternar_time_lapse(ch):
+    tl_ctl.layout.display = "flex" if ch.new else "none"
+    tl_btn.icon = "stop" if ch.new else "play"
+    tl_btn.description = "Salir del time lapse" if ch.new else "Time lapse (30 días por falla)"
+    if ch.new:  # parte en el inicio del rango de fechas elegido
+        tl_play.value = (sl_fechas.value[0] - DIA0).days
+    actualizar_grafico()
+
+
+tl_btn.observe(alternar_time_lapse, names="value")
+tl_dia.observe(actualizar_grafico, names="value")
+tl_vel.observe(lambda ch: setattr(tl_play, "step", ch.new), names="value")
 
 # ---------------------------------------------------------------------------
 # 7. BOTÓN PANTALLA COMPLETA (API nativa + fallback CSS para el iFrame de Colab)
@@ -974,6 +1039,7 @@ btn_fullscreen = widgets.HTML(
 fila_filtros = widgets.HBox([dd_edificio, dd_piso, dd_clase, btn_fullscreen],
                             layout=widgets.Layout(align_items="center", gap="12px"))
 panel = widgets.VBox([fila_filtros, sl_fechas, lbl_resumen,
+                      widgets.HBox([tl_btn, tl_ctl], layout=widgets.Layout(gap="12px")),
                       widgets.HBox([caja_leyenda, fig])])
 panel.add_class("ot-viz-container")
 

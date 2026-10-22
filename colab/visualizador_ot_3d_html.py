@@ -673,6 +673,15 @@ __PLOTLY__
     background: linear-gradient(90deg, #1f4fff, #8a2be2, #ff1a1a); }
   #textoFechas { color: #eee; font-variant-numeric: tabular-nums; }
   #resumen { color: #9aa0a6; font-size: 13px; }
+  [hidden] { display: none !important; }
+  .tl { gap: 10px 12px; }
+  .tl button { background: #1a1a24; color: #eee; border: 1px solid #3a3a50; border-radius: 8px;
+    padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .tl button:hover, .tl button:focus-visible { background: #262636; outline: none; }
+  #btnTl { border-color: #8a2be2; }
+  #ctlTl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; flex: 1 1 auto; }
+  #tlDia { flex: 1 1 220px; min-width: 0; max-width: 520px; accent-color: #8a2be2; }
+  #tlTexto { color: #eee; font-variant-numeric: tabular-nums; font-size: 13px; }
   .aviso-error { color: #ffb86b; border: 1px solid #5a3a1a; border-radius: 8px;
     padding: 12px 14px; max-width: 70ch; }
   #zona { position: relative; flex: 1 1 auto; display: flex; min-height: 560px; }
@@ -726,6 +735,20 @@ __PLOTLY__
     <button class="btn-fs" id="btnFs">&#x26F6;&nbsp; Pantalla completa</button>
   </div>
   <div id="resumen"></div>
+  <div class="fila tl">
+    <button type="button" id="btnTl">&#x25B6;&nbsp; Time lapse (30 días por falla)</button>
+    <div id="ctlTl" hidden>
+      <button type="button" id="tlPlay">&#x23F8;&nbsp; Pausa</button>
+      <button type="button" id="tlInicio" title="Volver al inicio">&#x23EE;</button>
+      <label>Velocidad <select id="tlVel">
+        <option value="5">5 días/s</option><option value="10" selected>10 días/s</option>
+        <option value="20">20 días/s</option><option value="40">40 días/s</option>
+      </select></label>
+      <input type="range" id="tlDia" min="0" step="1" aria-label="Fecha del time lapse">
+      <span id="tlTexto"></span>
+      <button type="button" id="tlSalir">Salir del time lapse</button>
+    </div>
+  </div>
   <div id="zona">
     <div id="grafico"></div>
     <aside id="leyenda" hidden></aside>
@@ -841,6 +864,29 @@ function mostrarLeyenda(i, porTipo) {
   $('cerrarLeyenda').addEventListener('click', () => { abierto = -1; actualizar(); });
 }
 
+// Time lapse: cada OT queda activa VIDA_OT días desde su creación y luego se apaga
+const VIDA_OT = 30;
+const tl = { activo: false, corriendo: false, dia: 0, acum: 0, timer: null };
+
+// Máximo de OT activas a la vez en un mismo depto durante [a, b]: fija la escala de
+// tamaño y color del time lapse para que no salte mientras se reproduce
+function maxActivas(a, b, pasa) {
+  const llegan = new Map();
+  for (let k = 0; k < M.ots.length; k += 4) {
+    const dia = M.ots[k + 1];
+    if (dia < a || dia > b || !pasa(k)) continue;
+    if (!llegan.has(dia)) llegan.set(dia, []);
+    llegan.get(dia).push(M.ots[k]);
+  }
+  const n = new Int32Array(nDeptos);
+  let max = 1;
+  for (let d = a; d <= b; d++) {
+    (llegan.get(d) || []).forEach(i => { if (++n[i] > max) max = n[i]; });
+    (llegan.get(d - VIDA_OT) || []).forEach(i => { n[i]--; });
+  }
+  return max;
+}
+
 function actualizar() {
   let a = +$('desde').value, b = +$('hasta').value;
   if (a > b) [a, b] = [b, a];
@@ -852,12 +898,21 @@ function actualizar() {
   const e = $('selEdificio').value, p = $('selPiso').value;
   const cl = $('selClase').value === TODOS ? -1 : M.clases.indexOf($('selClase').value);
   const visible = i => (e === TODOS || D.edificio[i] === e) && (p === TODOS || String(D.piso[i]) === p);
+  const pasa = k => (cl < 0 || M.ots[k + 2] === cl) && visible(M.ots[k]);
+  // Ventana de días a contar: todo el rango, o en el time lapse las OT aún activas
+  let lo = a, hi = b, maxTl = 1;
+  if (tl.activo) {
+    tl.dia = Math.min(Math.max(tl.dia, a), b);
+    lo = Math.max(a, tl.dia - VIDA_OT + 1); hi = tl.dia;
+    maxTl = maxActivas(a, b, pasa);
+    $('tlDia').min = a; $('tlDia').max = b; $('tlDia').value = tl.dia;
+  }
   const cuenta = new Int32Array(nDeptos);
   const porTipo = new Array(M.tipos.length).fill(0);
   let nOt = 0;
   for (let k = 0; k < M.ots.length; k += 4) {
     const i = M.ots[k], dia = M.ots[k + 1];
-    if (dia >= a && dia <= b && (cl < 0 || M.ots[k + 2] === cl) && visible(i)) {
+    if (dia >= lo && dia <= hi && pasa(k)) {
       cuenta[i]++; nOt++;
       if (i === abierto) porTipo[M.ots[k + 3]]++;
     }
@@ -870,16 +925,18 @@ function actualizar() {
     const d = cuenta[i];
     if (!d) continue;
     puntoADepto.push(i);
-    x.push(D.x[i]); y.push(D.y[i]); z.push(D.z[i]); c.push(d); s.push(tamano(d));
-    t.push(`<b>${D.edificio[i]}</b><br>Piso ${D.piso[i]} · ${esc(D.depto[i])}<br>Fallas en rango: <b>${d}</b>`);
+    x.push(D.x[i]); y.push(D.y[i]); z.push(D.z[i]); c.push(d);
+    s.push(tl.activo ? 6 + 26 * Math.sqrt(d / maxTl) : tamano(d));
+    t.push(`<b>${D.edificio[i]}</b><br>Piso ${D.piso[i]} · ${esc(D.depto[i])}<br>`
+      + (tl.activo ? `OT activas (últimos ${VIDA_OT} días): <b>${d}</b>` : `Fallas en rango: <b>${d}</b>`));
     max = Math.max(max, d);
   }
   const trazas = [{
     type: 'scatter3d', mode: 'markers', x, y, z, text: t, showlegend: false,
     hovertemplate: '%{text}<extra></extra>',
-    marker: { size: s, color: c, colorscale: M.escala, cmin: 0, cmax: M.densidadMax,
+    marker: { size: s, color: c, colorscale: M.escala, cmin: 0, cmax: tl.activo ? maxTl : M.densidadMax,
       opacity: abierto >= 0 ? 0.12 : 0.9, line: { width: 0 },  // oscurece el resto al desplegar
-      colorbar: { title: { text: 'Fallas' }, thickness: 14 } }
+      colorbar: { title: { text: tl.activo ? 'OT activas' : 'Fallas' }, thickness: 14 } }
   }];
   if (abierto >= 0) trazas.push(...trazasMolecula(abierto, porTipo));
   const planta = M.plantas[e];
@@ -898,8 +955,54 @@ function actualizar() {
   Plotly.react('grafico', trazas, layout, { responsive: true, displaylogo: false });
   enlazarClics();
   mostrarLeyenda(abierto, porTipo);
-  $('resumen').textContent = `${nOt} OT · ${x.length} departamentos visibles · máx. ${max} fallas/depto`
-    + ' · Doble clic en una burbuja para ver sus fallas por tipo';
+  if (tl.activo) {
+    $('tlTexto').textContent = `${fmt(tl.dia)} · ${nOt} OT activas en ${x.length} deptos`;
+    $('resumen').textContent = `Time lapse: cada OT se muestra ${VIDA_OT} días desde su creación y luego se apaga`
+      + ` · escala fija hasta ${maxTl} OT activas por depto · Espacio para pausar`;
+  } else {
+    $('resumen').textContent = `${nOt} OT · ${x.length} departamentos visibles · máx. ${max} fallas/depto`
+      + ' · Doble clic en una burbuja para ver sus fallas por tipo';
+  }
+}
+
+function rangoFechas() {
+  const a = +$('desde').value, b = +$('hasta').value;
+  return a <= b ? [a, b] : [b, a];
+}
+function tlReproducir(on) {
+  const [a, b] = rangoFechas();
+  clearInterval(tl.timer);
+  tl.corriendo = on;
+  if (on) {
+    if (tl.dia >= b) tl.dia = a;  // al terminar, reproducir de nuevo parte desde el inicio
+    tl.acum = 0;
+    tl.timer = setInterval(tlPaso, 100);
+  }
+  $('tlPlay').innerHTML = on ? '&#x23F8;&nbsp; Pausa'
+    : (tl.dia >= b ? '&#x21BB;&nbsp; Repetir' : '&#x25B6;&nbsp; Reproducir');
+}
+function tlPaso() {
+  const b = rangoFechas()[1];
+  tl.acum += +$('tlVel').value / 10;  // 10 pasos por segundo
+  const n = Math.floor(tl.acum);
+  if (!n) return;
+  tl.acum -= n;
+  tl.dia = Math.min(b, tl.dia + n);
+  programarActualizacion();
+  if (tl.dia >= b) tlReproducir(false);
+}
+function tlIniciar() {
+  tl.activo = true;
+  tl.dia = rangoFechas()[0];
+  $('btnTl').hidden = true; $('ctlTl').hidden = false;
+  programarActualizacion();
+  tlReproducir(true);
+}
+function tlSalir() {
+  tlReproducir(false);
+  tl.activo = false;
+  $('btnTl').hidden = false; $('ctlTl').hidden = true;
+  programarActualizacion();
 }
 
 // En 3D, plotly_click solo llega si el botón sigue apretado durante un cuadro de dibujo,
@@ -938,6 +1041,17 @@ $('selPiso').addEventListener('change', programarActualizacion);
 $('selClase').addEventListener('change', programarActualizacion);
 $('desde').addEventListener('input', programarActualizacion);
 $('hasta').addEventListener('input', programarActualizacion);
+$('btnTl').addEventListener('click', tlIniciar);
+$('tlSalir').addEventListener('click', tlSalir);
+$('tlPlay').addEventListener('click', () => tlReproducir(!tl.corriendo));
+// Saltar de fecha no reinicia la reproducción; en pausa solo actualiza el texto del botón
+function tlIrA(dia) {
+  tl.dia = dia; tl.acum = 0;
+  if (!tl.corriendo) tlReproducir(false);
+  programarActualizacion();
+}
+$('tlInicio').addEventListener('click', () => tlIrA(rangoFechas()[0]));
+$('tlDia').addEventListener('input', () => tlIrA(+$('tlDia').value));
 
 // Pantalla completa: API nativa con fallback CSS
 const caja = $('contenedor'), btn = $('btnFs');
@@ -963,6 +1077,10 @@ document.addEventListener('fullscreenchange', () => {
   etiqueta(!!document.fullscreenElement); redimensionar();
 });
 document.addEventListener('keydown', ev => {
+  // Espacio pausa o reanuda el time lapse (salvo escribiendo en un control)
+  if (ev.key === ' ' && tl.activo && !/^(SELECT|INPUT|BUTTON)$/.test(document.activeElement.tagName)) {
+    ev.preventDefault(); tlReproducir(!tl.corriendo); return;
+  }
   if (ev.key !== 'Escape') return;
   if (abierto >= 0) { abierto = -1; actualizar(); return; }
   if (enFallback()) fallback(false);
