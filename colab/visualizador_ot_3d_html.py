@@ -414,7 +414,7 @@ actualizar();
 
 def generar_html(modelo, salida, usar_cdn=False):
     if usar_cdn:
-        plotly_tag = '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>'
+        plotly_tag = '<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js" charset="utf-8"></script>'
     else:
         from plotly.offline import get_plotlyjs
         plotly_tag = f"<script>{get_plotlyjs()}</script>"
