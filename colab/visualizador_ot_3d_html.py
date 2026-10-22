@@ -961,8 +961,13 @@ function actualizar() {
     const ang = 0.02, e = cam.eye, cx = Math.cos(ang), sx = Math.sin(ang);
     cam = Object.assign({}, cam, { eye: { x: e.x * cx - e.y * sx, y: e.x * sx + e.y * cx, z: e.z } });
   }
-  Plotly.react('grafico', trazas, layout, { responsive: true, displaylogo: false });
-  if (cam) Plotly.relayout('grafico', { 'scene.camera': cam });
+  // La cámara va en el propio layout (si no, react volvería a la vista inicial) y se reaplica
+  // recién cuando react termina, porque parte de su trabajo es asíncrono
+  if (cam) layout.scene.camera = cam;
+  const dibujo = Plotly.react('grafico', trazas, layout, { responsive: true, displaylogo: false });
+  if (cam) Promise.resolve(dibujo).then(() => {
+    if (!arrastrando) Plotly.relayout('grafico', { 'scene.camera': cam });  // no pisar un giro en curso
+  });
   enlazarClics();
   mostrarLeyenda(abierto, porTipo);
   if (tl.activo) {
