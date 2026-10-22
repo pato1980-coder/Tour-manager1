@@ -126,6 +126,37 @@ PLANTAS = {
             [(-6.4, -0.3), (10.0, -0.3), (10.0, -42.6), (-6.4, -42.6), (-6.4, -0.3)],
         ],
     },
+    # Somma Ines de Suarez, lámina A-07 (piso 3), con torres MAYOR (deptos 1–43, en C
+    # alrededor del patio) y MENOR (deptos 1–7, bloque al sur-oriente) en su posición real.
+    # La lámina está impresa reducida (dice 1:100, pero los deslindes A-B = 106,51 m y
+    # F-E = 164,16 m dan 0,0956 m por punto); las coordenadas usan esa calibración.
+    # Las plantas de los pisos 2, 4, 5–8 y 9 tienen la misma distribución (±1 m).
+    "Somma Ines de Suarez": {
+        "escala": 3 / 45.6,
+        "unir_torres": True,
+        "deptos": {
+            ("MAYOR", 1): (37.6, 29.0), ("MAYOR", 2): (37.6, 21.4), ("MAYOR", 3): (22.2, 20.1), ("MAYOR", 4): (12.3, 20.1),
+            ("MAYOR", 5): (2.8, 20.1), ("MAYOR", 6): (-6.1, 22.0), ("MAYOR", 7): (-11.2, 20.8), ("MAYOR", 8): (-19.2, 20.8),
+            ("MAYOR", 9): (-23.1, 20.8), ("MAYOR", 10): (-31.8, 14.5), ("MAYOR", 11): (-31.8, 7.9), ("MAYOR", 12): (-30.9, 0.6),
+            ("MAYOR", 13): (-30.9, -9.2), ("MAYOR", 14): (-31.9, -17.0), ("MAYOR", 15): (-22.2, -22.5), ("MAYOR", 16): (-12.8, -22.5),
+            ("MAYOR", 17): (-4.8, -22.5), ("MAYOR", 18): (4.4, -22.5), ("MAYOR", 19): (12.6, -22.5), ("MAYOR", 20): (11.9, -31.8),
+            ("MAYOR", 21): (3.3, -31.8), ("MAYOR", 22): (-6.8, -31.8), ("MAYOR", 23): (-16.1, -31.9), ("MAYOR", 24): (-20.2, -31.9),
+            ("MAYOR", 25): (-27.9, -31.9), ("MAYOR", 26): (-33.1, -31.9), ("MAYOR", 27): (-40.9, -31.4), ("MAYOR", 28): (-40.5, -17.1),
+            ("MAYOR", 29): (-40.5, -10.1), ("MAYOR", 30): (-40.9, -5.1), ("MAYOR", 31): (-40.9, 3.7), ("MAYOR", 32): (-40.9, 7.9),
+            ("MAYOR", 33): (-40.9, 15.2), ("MAYOR", 34): (-42.1, 30.3), ("MAYOR", 35): (-32.8, 29.8), ("MAYOR", 36): (-23.1, 29.8),
+            ("MAYOR", 37): (-15.7, 29.8), ("MAYOR", 38): (-6.9, 30.4), ("MAYOR", 39): (-2.6, 30.4), ("MAYOR", 40): (5.8, 30.4),
+            ("MAYOR", 41): (10.4, 30.4), ("MAYOR", 42): (18.5, 30.4), ("MAYOR", 43): (24.7, 30.4),
+            ("MENOR", 1): (30.2, -14.3), ("MENOR", 2): (30.2, -4.6), ("MENOR", 3): (39.5, -4.8), ("MENOR", 4): (39.5, -14.5),
+            ("MENOR", 5): (39.5, -24.1), ("MENOR", 6): (39.5, -31.3), ("MENOR", 7): (32.5, -30.7),
+        },
+        # Contorno de cada torre (muros exteriores), solo en los pisos de esa torre
+        "torres_contorno": ["MAYOR", "MENOR"],
+        "contornos": [
+            [(-45.6, 35.3), (43.9, 35.3), (43.9, 15.8), (-25.5, 15.8), (-25.5, -15.8),
+             (17.5, -15.8), (17.5, -35.3), (-45.6, -35.3), (-45.6, 35.3)],
+            [(23.8, 0.5), (45.6, 0.5), (45.6, -35.3), (23.8, -35.3), (23.8, 0.5)],
+        ],
+    },
 }
 TODOS = "Todos"
 
