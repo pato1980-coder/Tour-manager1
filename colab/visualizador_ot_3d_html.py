@@ -44,6 +44,28 @@ COLORES_TIPO = [
     "#7E7DCD", "#FC6955", "#E48F72", "#FFFFFF", "#A0A0FF", "#FFD700",
 ]
 COLOR_SIN_TIPO = "#8A8F98"
+
+# Posiciones reales según planos de arquitectura (metros desde el centro de la planta,
+# X hacia la derecha y Y hacia arriba de la lámina). Los edificios que no aparecen
+# aquí usan la grilla cuadrada genérica.
+M_A_GRILLA = 3 / 16.8  # 1 unidad de grilla ≈ 5,6 m: la planta de 33,6 m cabe en ±3
+PLANTAS = {
+    # Somma Asturias, láminas MP-PG-110 (piso 3), 111 (pisos 4–15) y 112 (pisos 16–18):
+    # 12 deptos por piso en anillo alrededor del núcleo de ascensores y escalera.
+    "Somma Asturias": {
+        "deptos": {
+            9: (-13.2, 10.0), 11: (-4.8, 10.5), 12: (4.8, 10.5), 10: (13.2, 10.0),
+            7: (-12.4, 2.85), 8: (12.4, 2.85),
+            5: (-12.4, -2.85), 6: (12.4, -2.85),
+            3: (-13.2, -10.0), 1: (-4.8, -10.5), 2: (4.8, -10.5), 4: (13.2, -10.0),
+        },
+        # Contorno exterior de la planta y del núcleo central (patio + circulaciones)
+        "contornos": [
+            [(-16.8, 13.4), (16.8, 13.4), (16.8, -13.3), (-16.8, -13.3), (-16.8, 13.4)],
+            [(-8.4, 6.3), (8.4, 6.3), (8.4, -6.4), (-8.4, -6.4), (-8.4, 6.3)],
+        ],
+    },
+}
 MARGEN_EJES = 1.0          # margen estático de seguridad en X/Y/Z
 GRID_MIN, GRID_MAX = 3, 7  # grilla dinámica 3x3 … 7x7
 
@@ -196,6 +218,13 @@ def tamano_grilla(n):
 
 def asignar_coordenadas(grupo):
     grupo = grupo.sort_values("Depto_Num").copy()
+    plano = PLANTAS.get(grupo["Edificio"].iloc[0])
+    if plano and grupo["Depto_Num"].isin(list(plano["deptos"])).all():
+        xy = grupo["Depto_Num"].map(plano["deptos"])
+        grupo["X"] = [p[0] * M_A_GRILLA for p in xy]
+        grupo["Y"] = [p[1] * M_A_GRILLA for p in xy]
+        grupo["Grid_Size"] = 0  # posición según plano, no grilla
+        return grupo
     grid_size = tamano_grilla(len(grupo))
     offset = (grid_size - 1) / 2.0           # centrado matemático en (0,0)
     idx = np.arange(len(grupo))
@@ -263,6 +292,15 @@ def construir_modelo(df):
         "aspecto": {"x": 1, "y": 1, "z": max(0.6, min(2.5, span_z / (2 * lim_xy) * 0.6))},
         "densidadMax": int(deptos["Densidad_Total"].max()),
         "escala": ESCALA_COLORES,
+        # Contornos de planta (en unidades de grilla) y pisos donde dibujarlos
+        "plantas": {
+            ed: {
+                "contornos": [[[x * M_A_GRILLA, y * M_A_GRILLA] for x, y in c]
+                              for c in p["contornos"]],
+                "pisos": sorted(deptos.loc[deptos["Edificio"] == ed, "Z"].astype(int).unique().tolist()),
+            }
+            for ed, p in PLANTAS.items() if (deptos["Edificio"] == ed).any()
+        },
     }
 
 
@@ -511,6 +549,18 @@ function actualizar() {
       colorbar: { title: { text: 'Fallas' }, thickness: 14 } }
   }];
   if (abierto >= 0) trazas.push(...trazasMolecula(abierto, porTipo));
+  const planta = M.plantas[e];
+  if (planta) {  // edificio con plano real: dibuja el contorno en cada piso
+    const lx = [], ly = [], lz = [];
+    planta.pisos.filter(z => p === TODOS || String(z) === p).forEach(z => {
+      planta.contornos.forEach(c => {
+        c.forEach(([px, py]) => { lx.push(px); ly.push(py); lz.push(z); });
+        lx.push(null); ly.push(null); lz.push(null);
+      });
+    });
+    trazas.push({ type: 'scatter3d', mode: 'lines', x: lx, y: ly, z: lz, hoverinfo: 'skip',
+      showlegend: false, line: { color: '#3b4058', width: 2 } });
+  }
   Plotly.react('grafico', trazas, layout, { responsive: true, displaylogo: false });
   enlazarClics();
   mostrarLeyenda(abierto, porTipo);

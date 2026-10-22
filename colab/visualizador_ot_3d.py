@@ -49,6 +49,28 @@ COL_TIPO = "ITEM"                   # opcional: tipo de falla para las sub-burbu
 SIN_TIPO = "Sin ítem"
 MARGEN_EJES = 1.0          # margen estático de seguridad en X/Y/Z
 GRID_MIN, GRID_MAX = 3, 7  # grilla dinámica 3x3 … 7x7
+
+# Posiciones reales según planos de arquitectura (metros desde el centro de la planta,
+# X hacia la derecha y Y hacia arriba de la lámina). Los edificios que no aparecen
+# aquí usan la grilla cuadrada genérica.
+M_A_GRILLA = 3 / 16.8  # 1 unidad de grilla ≈ 5,6 m: la planta de 33,6 m cabe en ±3
+PLANTAS = {
+    # Somma Asturias, láminas MP-PG-110 (piso 3), 111 (pisos 4–15) y 112 (pisos 16–18):
+    # 12 deptos por piso en anillo alrededor del núcleo de ascensores y escalera.
+    "Somma Asturias": {
+        "deptos": {
+            9: (-13.2, 10.0), 11: (-4.8, 10.5), 12: (4.8, 10.5), 10: (13.2, 10.0),
+            7: (-12.4, 2.85), 8: (12.4, 2.85),
+            5: (-12.4, -2.85), 6: (12.4, -2.85),
+            3: (-13.2, -10.0), 1: (-4.8, -10.5), 2: (4.8, -10.5), 4: (13.2, -10.0),
+        },
+        # Contorno exterior de la planta y del núcleo central (patio + circulaciones)
+        "contornos": [
+            [(-16.8, 13.4), (16.8, 13.4), (16.8, -13.3), (-16.8, -13.3), (-16.8, 13.4)],
+            [(-8.4, 6.3), (8.4, 6.3), (8.4, -6.4), (-8.4, -6.4), (-8.4, 6.3)],
+        ],
+    },
+}
 TODOS = "Todos"
 
 # Escala continua Azul -> Morado -> Rojo
@@ -204,6 +226,13 @@ def tamano_grilla(n):
 
 def asignar_coordenadas(grupo):
     grupo = grupo.sort_values("Depto_Num").copy()
+    plano = PLANTAS.get(grupo["Edificio"].iloc[0])
+    if plano and grupo["Depto_Num"].isin(list(plano["deptos"])).all():
+        xy = grupo["Depto_Num"].map(plano["deptos"])
+        grupo["X"] = [p[0] * M_A_GRILLA for p in xy]
+        grupo["Y"] = [p[1] * M_A_GRILLA for p in xy]
+        grupo["Grid_Size"] = 0  # posición según plano, no grilla
+        return grupo
     grid_size = tamano_grilla(len(grupo))
     offset = (grid_size - 1) / 2.0           # centrado matemático en (0,0)
     idx = np.arange(len(grupo))
@@ -304,6 +333,9 @@ fig = go.FigureWidget(
                      hovertemplate="%{hovertext}<extra></extra>",
                      textposition="middle center", textfont=dict(color="#000", size=11),
                      marker=dict(size=[], color=[], opacity=1)),
+        # Contorno de planta real (solo edificios con plano en PLANTAS)
+        go.Scatter3d(x=[], y=[], z=[], mode="lines", hoverinfo="skip",
+                     line=dict(color="#3b4058", width=2)),
     ],
     layout=go.Layout(
         template="plotly_dark",
@@ -395,6 +427,7 @@ def actualizar_grafico(*_):
         t.text = textos
         t.marker.opacity = 0.12 if abierto else 0.9  # oscurece el resto al desplegar
         dibujar_molecula(df[m & (df["Depto_ID"] == abierto)] if abierto else None)
+        dibujar_contorno()
         # Re-afirma los límites absolutos para que nada se auto-escale
         fig.layout.scene.xaxis.range = RANGO_X
         fig.layout.scene.yaxis.range = RANGO_Y
@@ -409,6 +442,22 @@ def actualizar_grafico(*_):
 dd_edificio.observe(lambda ch: (actualizar_pisos(), actualizar_grafico()), names="value")
 dd_piso.observe(actualizar_grafico, names="value")
 dd_clase.observe(actualizar_grafico, names="value")
+
+
+def dibujar_contorno():
+    """Dibuja el contorno de la planta en cada piso si el edificio tiene plano real."""
+    plano = PLANTAS.get(dd_edificio.value)
+    lx, ly, lz = [], [], []
+    if plano:
+        pisos = sorted(deptos.loc[deptos["Edificio"] == dd_edificio.value, "Z"].unique())
+        if dd_piso.value != TODOS:
+            pisos = [z for z in pisos if z == int(dd_piso.value)]
+        for z in pisos:
+            for c in plano["contornos"]:
+                lx += [x * M_A_GRILLA for x, _ in c] + [None]
+                ly += [y * M_A_GRILLA for _, y in c] + [None]
+                lz += [int(z)] * len(c) + [None]
+    fig.data[4].x, fig.data[4].y, fig.data[4].z = lx, ly, lz
 
 
 def dibujar_molecula(ots_depto):
