@@ -1144,16 +1144,62 @@ function webglDisponible() {
 function mostrarError(msg) {
   $('grafico').innerHTML = '<p class="aviso-error">' + msg + '</p>';
 }
-actualizarPisos();
-if (typeof Plotly === 'undefined') {
-  mostrarError('No se pudo cargar la librería de gráficos (Plotly). Revisa tu conexión '
-    + 'o genera el archivo sin la opción --cdn.');
-} else if (!webglDisponible()) {
-  mostrarError('Tu navegador no tiene WebGL activo, y los gráficos 3D lo necesitan. Activa la '
-    + 'aceleración por hardware en la configuración del navegador o prueba con otro navegador.');
-} else {
-  try { actualizar(); } catch (e) { mostrarError('Error al dibujar el gráfico: ' + e.message); }
+// Estado de la vista (cámara, filtros y time lapse). Se conserva cuando el visor recarga la
+// página por una versión nueva (claude.hot) y, en este navegador, entre visitas (localStorage).
+const CLAVE_ESTADO = 'maqueta-ot-3d:estado';
+function estadoActual() {
+  return {
+    cam: camaraViva() || layout.scene.camera,
+    edificio: $('selEdificio').value, piso: $('selPiso').value, clase: $('selClase').value,
+    desde: +$('desde').value, hasta: +$('hasta').value,
+    tl: { activo: tl.activo, corriendo: tl.corriendo, dia: tl.dia, vel: $('tlVel').value, giro: $('tlGiro').checked },
+  };
 }
+function restaurar(st) {
+  if (!st || typeof st !== 'object') return;
+  const elegir = (sel, v) => { if ([...sel.options].some(o => o.value === String(v))) sel.value = String(v); };
+  if (st.edificio != null) { elegir($('selEdificio'), st.edificio); actualizarPisos(); }
+  if (st.piso != null) elegir($('selPiso'), st.piso);
+  if (st.clase != null) elegir($('selClase'), st.clase);
+  const dentro = v => Number.isFinite(v) && v >= 0 && v <= M.nDias - 1;
+  if (dentro(st.desde)) $('desde').value = st.desde;
+  if (dentro(st.hasta)) $('hasta').value = st.hasta;
+  if (st.cam && st.cam.eye) layout.scene.camera = st.cam;
+  if (st.tl && st.tl.activo) {
+    tl.activo = true; tl.dia = +st.tl.dia || 0;
+    elegir($('tlVel'), st.tl.vel); $('tlGiro').checked = !!st.tl.giro;
+    $('btnTl').hidden = true; $('ctlTl').hidden = false;
+  }
+}
+function guardarEstado() {
+  try { localStorage.setItem(CLAVE_ESTADO, JSON.stringify(estadoActual())); } catch (e) { /* sin almacenamiento: no pasa nada */ }
+}
+let guardado = null;
+const programarGuardado = () => { clearTimeout(guardado); guardado = setTimeout(guardarEstado, 400); };
+['selEdificio', 'selPiso', 'selClase', 'desde', 'hasta', 'tlVel', 'tlGiro'].forEach(id =>
+  $(id).addEventListener('change', programarGuardado));
+window.addEventListener('pagehide', guardarEstado);
+const hot = window.claude && window.claude.hot;
+if (hot && hot.snapshot) hot.snapshot(() => estadoActual());
+
+function arrancar(datos) {
+  let st = datos && Object.keys(datos).length ? datos : null;
+  if (!st) { try { st = JSON.parse(localStorage.getItem(CLAVE_ESTADO) || 'null'); } catch (e) { st = null; } }
+  actualizarPisos();
+  restaurar(st);
+  if (typeof Plotly === 'undefined') {
+    mostrarError('No se pudo cargar la librería de gráficos (Plotly). Revisa tu conexión '
+      + 'o genera el archivo sin la opción --cdn.');
+  } else if (!webglDisponible()) {
+    mostrarError('Tu navegador no tiene WebGL activo, y los gráficos 3D lo necesitan. Activa la '
+      + 'aceleración por hardware en la configuración del navegador o prueba con otro navegador.');
+  } else {
+    try { actualizar(); } catch (e) { mostrarError('Error al dibujar el gráfico: ' + e.message); return; }
+    $('grafico').on('plotly_relayout', programarGuardado);  // guarda la vista al girar o hacer zoom
+    if (tl.activo) tlReproducir(!!(st && st.tl && st.tl.corriendo));
+  }
+}
+if (hot && hot.ready) hot.ready(arrancar); else arrancar(hot && hot.data ? hot.data : {});
 </script>
 </body>
 </html>
