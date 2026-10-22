@@ -33,6 +33,17 @@ import pandas as pd
 COL_FECHA = "Creado"
 COL_UNIDAD = "unidad"
 COL_CLASE = "ESTADO CLASIFICACIÓN"  # opcional: habilita el filtro por clasificación
+COL_TIPO = "ITEM"                   # opcional: tipo de falla para las sub-burbujas
+SIN_TIPO = "Sin ítem"
+
+# Colores categóricos para los tipos (legibles sobre fondo negro); se reciclan si faltan
+COLORES_TIPO = [
+    "#FD3216", "#00FE35", "#6A76FC", "#FED4C4", "#FE00CE", "#0DF9FF", "#F6F926",
+    "#FF9616", "#479B55", "#EEA6FB", "#DC587D", "#D626FF", "#6E899C", "#00B5F7",
+    "#B68E00", "#C9FBE5", "#FF0092", "#22FFA7", "#E3EE9E", "#86CE00", "#BC7196",
+    "#7E7DCD", "#FC6955", "#E48F72", "#FFFFFF", "#A0A0FF", "#FFD700",
+]
+COLOR_SIN_TIPO = "#8A8F98"
 MARGEN_EJES = 1.0          # margen estático de seguridad en X/Y/Z
 GRID_MIN, GRID_MAX = 3, 7  # grilla dinámica 3x3 … 7x7
 
@@ -161,6 +172,9 @@ def cargar_datos(ruta_excel):
     col_clase = buscar_columna(df, COL_CLASE, ("clasificacion", "estado clasificacion"))
     df["Clase"] = (df[col_clase].fillna("Sin clasificación").astype(str).str.strip()
                    if col_clase else "Sin clasificación")
+    col_tipo = buscar_columna(df, COL_TIPO, ("item", "tipo falla"))
+    df["Tipo"] = (df[col_tipo].fillna(SIN_TIPO).astype(str).str.strip().replace("", SIN_TIPO)
+                  if col_tipo else SIN_TIPO)
     df["Depto_ID"] = (df["Edificio"] + " | P" + df["Piso_Num"].astype(str)
                       + "-D" + df["Depto_Num"].astype(str).str.zfill(2))
     print(f"Registros válidos: {len(df)} de {filas_antes} "
@@ -206,16 +220,26 @@ def construir_modelo(df):
     rango_z = [float(deptos["Z"].min()) - MARGEN_EJES, float(deptos["Z"].max()) + MARGEN_EJES]
     span_z = rango_z[1] - rango_z[0]
 
-    # Cada OT se reduce a (índice de depto, día, clase) para filtrar en el navegador
+    # Cada OT se reduce a (índice de depto, día, clase, tipo) para filtrar en el navegador
     idx_depto = {d: i for i, d in enumerate(deptos["Depto_ID"])}
     clases = df["Clase"].value_counts().index.tolist()
     idx_clase = {c: i for i, c in enumerate(clases)}
+    tipos = df["Tipo"].value_counts().index.tolist()
+    idx_tipo = {t: i for i, t in enumerate(tipos)}
+    colores_tipo, k = [], 0
+    for t in tipos:
+        if t == SIN_TIPO:
+            colores_tipo.append(COLOR_SIN_TIPO)
+        else:
+            colores_tipo.append(COLORES_TIPO[k % len(COLORES_TIPO)])
+            k += 1
     dias = df["Fecha"].dt.normalize()
     fecha_0 = dias.min()
     ots = np.column_stack([
         df["Depto_ID"].map(idx_depto).to_numpy(),
         (dias - fecha_0).dt.days.to_numpy(),
         df["Clase"].map(idx_clase).to_numpy(),
+        df["Tipo"].map(idx_tipo).to_numpy(),
     ]).astype(int)
 
     return {
@@ -227,8 +251,10 @@ def construir_modelo(df):
             "y": deptos["Y"].astype(float).tolist(),
             "z": deptos["Z"].astype(int).tolist(),
         },
-        "ots": ots.ravel().tolist(),  # tríos aplanados [depto, día, clase, …]
+        "ots": ots.ravel().tolist(),  # cuartetos aplanados [depto, día, clase, tipo, …]
         "clases": clases,
+        "tipos": tipos,
+        "coloresTipo": colores_tipo,
         "fecha0": fecha_0.strftime("%Y-%m-%d"),
         "nDias": int((dias.max() - fecha_0).days) + 1,
         "rangoX": [-lim_xy, lim_xy],
@@ -278,7 +304,24 @@ __PLOTLY__
   #resumen { color: #9aa0a6; font-size: 13px; }
   .aviso-error { color: #ffb86b; border: 1px solid #5a3a1a; border-radius: 8px;
     padding: 12px 14px; max-width: 70ch; }
-  #grafico { flex: 1 1 auto; min-height: 560px; width: 100%; }
+  #zona { position: relative; flex: 1 1 auto; display: flex; min-height: 560px; }
+  #grafico { flex: 1 1 auto; min-width: 0; width: 100%; }
+  #leyenda { position: absolute; top: 54px; left: 8px; width: min(300px, calc(100% - 16px));
+    max-height: calc(100% - 70px); overflow: auto; background: rgba(8, 8, 14, .9);
+    border: 1px solid #2c2c3a; border-radius: 10px; padding: 12px 14px; z-index: 5;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .6); }
+  #leyenda h3 { margin: 0 0 2px; font-size: 14px; color: #fff; text-wrap: balance; }
+  #leyenda .sub { color: #9aa0a6; font-size: 12px; margin-bottom: 10px; }
+  #leyenda ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+  #leyenda li { display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; align-items: center;
+    font-size: 13px; color: #ddd; }
+  #leyenda .punto { width: 12px; height: 12px; border-radius: 50%; }
+  #leyenda .n { font-variant-numeric: tabular-nums; color: #fff; font-weight: 600; }
+  #leyenda .pie { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    margin-top: 12px; color: #777; font-size: 11px; }
+  #leyenda button { background: #222; color: #eee; border: 1px solid #444; border-radius: 6px;
+    padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+  #leyenda button:hover, #leyenda button:focus-visible { background: #333; outline: none; }
   .btn-fs { margin-left: auto; background: linear-gradient(135deg, #1f4fff, #8a2be2 55%, #ff1a1a);
     color: #fff; border: none; border-radius: 10px; padding: 8px 18px;
     font: 600 13px/1.2 inherit; letter-spacing: .3px; cursor: pointer;
@@ -291,7 +334,7 @@ __PLOTLY__
     width: 100vw !important; height: 100vh !important; z-index: 2147483647 !important;
     overflow: auto !important; }
   #contenedor:fullscreen, #contenedor.fs-fallback { height: 100vh; }
-  #contenedor:fullscreen #grafico, #contenedor.fs-fallback #grafico { min-height: 0; }
+  #contenedor:fullscreen #zona, #contenedor.fs-fallback #zona { min-height: 0; }
   @media (max-width: 640px) { #contenedor { padding: 10px 16px; } .btn-fs { margin-left: 0; } }
 </style>
 </head>
@@ -312,7 +355,10 @@ __PLOTLY__
     <button class="btn-fs" id="btnFs">&#x26F6;&nbsp; Pantalla completa</button>
   </div>
   <div id="resumen"></div>
-  <div id="grafico"></div>
+  <div id="zona">
+    <div id="grafico"></div>
+    <aside id="leyenda" hidden></aside>
+  </div>
 </div>
 <script>
 const M = __DATOS__;
@@ -363,6 +409,67 @@ const layout = {
   }
 };
 
+// Detalle tipo "molécula": doble clic en un depto despliega sub-burbujas por tipo
+let abierto = -1;            // índice del depto desplegado (-1 = ninguno)
+let puntoADepto = [];        // índice de punto de la traza principal -> índice de depto
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+
+// Posiciones repartidas sobre una esfera (espiral de Fibonacci), corregidas por la
+// proporción de los ejes para que la molécula se vea redonda y no aplastada
+function posicionesEsfera(n, r) {
+  const kx = (M.rangoX[1] - M.rangoX[0]) / M.aspecto.x;
+  const kz = (M.rangoZ[1] - M.rangoZ[0]) / M.aspecto.z;
+  const rz = r * kz / kx, oro = Math.PI * (3 - Math.sqrt(5)), out = [];
+  for (let k = 0; k < n; k++) {
+    const yk = n === 1 ? 0 : 1 - (k / (n - 1)) * 2, rad = Math.sqrt(1 - yk * yk), th = k * oro;
+    out.push([Math.cos(th) * rad * r, Math.sin(th) * rad * r, yk * rz]);
+  }
+  return out;
+}
+
+function trazasMolecula(i, porTipo) {
+  const tipos = porTipo.map((n, t) => [t, n]).filter(([, n]) => n > 0).sort((p, q) => q[1] - p[1]);
+  const maxN = tipos.length ? tipos[0][1] : 1;
+  const pos = posicionesEsfera(tipos.length, 1.4);
+  const cx = D.x[i], cy = D.y[i], cz = D.z[i];
+  const lx = [], ly = [], lz = [], sx = [], sy = [], sz = [], sc = [], ss = [], st = [], sh = [];
+  tipos.forEach(([t, n], k) => {
+    const [dx, dy, dz] = pos[k];
+    lx.push(cx, cx + dx, null); ly.push(cy, cy + dy, null); lz.push(cz, cz + dz, null);
+    sx.push(cx + dx); sy.push(cy + dy); sz.push(cz + dz);
+    sc.push(M.coloresTipo[t]); ss.push(12 + 26 * Math.sqrt(n / maxN));
+    st.push(String(n)); sh.push(`<b>${esc(M.tipos[t])}</b><br>${n} OT`);
+  });
+  return [
+    { type: 'scatter3d', mode: 'lines', x: lx, y: ly, z: lz, hoverinfo: 'skip', showlegend: false,
+      line: { color: '#9a9aae', width: 4 } },
+    { type: 'scatter3d', mode: 'markers', x: [cx], y: [cy], z: [cz], showlegend: false,
+      text: [`<b>${esc(D.edificio[i])}</b><br>Piso ${D.piso[i]} · Depto ${D.depto[i]}`],
+      hovertemplate: '%{text}<extra></extra>',
+      marker: { size: 18, color: '#ffffff', opacity: 1 } },
+    { type: 'scatter3d', mode: 'markers+text', x: sx, y: sy, z: sz, text: st, hovertext: sh,
+      hovertemplate: '%{hovertext}<extra></extra>', showlegend: false,
+      textposition: 'middle center', textfont: { color: '#000', size: 11 },
+      marker: { size: ss, color: sc, opacity: 1 } },
+  ];
+}
+
+function mostrarLeyenda(i, porTipo) {
+  const lg = $('leyenda');
+  if (i < 0) { lg.hidden = true; lg.innerHTML = ''; return; }
+  const total = porTipo.reduce((p, q) => p + q, 0);
+  const filas = porTipo.map((n, t) => [t, n]).filter(([, n]) => n > 0).sort((p, q) => q[1] - p[1])
+    .map(([t, n]) => `<li><span class="punto" style="background:${M.coloresTipo[t]}"></span>`
+      + `<span>${esc(M.tipos[t])}</span><span class="n">${n}</span></li>`).join('');
+  lg.innerHTML = `<h3>${esc(D.edificio[i])}</h3>`
+    + `<div class="sub">Piso ${D.piso[i]} · Depto ${D.depto[i]} · ${total} OT por tipo</div>`
+    + `<ul>${filas}</ul>`
+    + `<div class="pie"><span>Doble clic en otra burbuja para cambiar · Esc para cerrar</span>`
+    + `<button type="button" id="cerrarLeyenda">Cerrar</button></div>`;
+  lg.hidden = false;
+  $('cerrarLeyenda').addEventListener('click', () => { abierto = -1; actualizar(); });
+}
+
 function actualizar() {
   let a = +$('desde').value, b = +$('hasta').value;
   if (a > b) [a, b] = [b, a];
@@ -375,28 +482,63 @@ function actualizar() {
   const cl = $('selClase').value === TODOS ? -1 : M.clases.indexOf($('selClase').value);
   const visible = i => (e === TODOS || D.edificio[i] === e) && (p === TODOS || String(D.piso[i]) === p);
   const cuenta = new Int32Array(nDeptos);
+  const porTipo = new Array(M.tipos.length).fill(0);
   let nOt = 0;
-  for (let k = 0; k < M.ots.length; k += 3) {
+  for (let k = 0; k < M.ots.length; k += 4) {
     const i = M.ots[k], dia = M.ots[k + 1];
-    if (dia >= a && dia <= b && (cl < 0 || M.ots[k + 2] === cl) && visible(i)) { cuenta[i]++; nOt++; }
+    if (dia >= a && dia <= b && (cl < 0 || M.ots[k + 2] === cl) && visible(i)) {
+      cuenta[i]++; nOt++;
+      if (i === abierto) porTipo[M.ots[k + 3]]++;
+    }
   }
+  if (abierto >= 0 && !cuenta[abierto]) abierto = -1;  // el filtro dejó fuera al depto abierto
   const x = [], y = [], z = [], c = [], s = [], t = [];
   let max = 0;
+  puntoADepto = [];
   for (let i = 0; i < nDeptos; i++) {
     const d = cuenta[i];
     if (!d) continue;
+    puntoADepto.push(i);
     x.push(D.x[i]); y.push(D.y[i]); z.push(D.z[i]); c.push(d); s.push(tamano(d));
     t.push(`<b>${D.edificio[i]}</b><br>Piso ${D.piso[i]} · Depto ${D.depto[i]}<br>Fallas en rango: <b>${d}</b>`);
     max = Math.max(max, d);
   }
-  Plotly.react('grafico', [{
-    type: 'scatter3d', mode: 'markers', x, y, z, text: t,
+  const trazas = [{
+    type: 'scatter3d', mode: 'markers', x, y, z, text: t, showlegend: false,
     hovertemplate: '%{text}<extra></extra>',
     marker: { size: s, color: c, colorscale: M.escala, cmin: 0, cmax: M.densidadMax,
-      opacity: 0.9, line: { width: 0 },
+      opacity: abierto >= 0 ? 0.12 : 0.9, line: { width: 0 },  // oscurece el resto al desplegar
       colorbar: { title: { text: 'Fallas' }, thickness: 14 } }
-  }], layout, { responsive: true, displaylogo: false });
-  $('resumen').textContent = `${nOt} OT · ${x.length} departamentos visibles · máx. ${max} fallas/depto`;
+  }];
+  if (abierto >= 0) trazas.push(...trazasMolecula(abierto, porTipo));
+  Plotly.react('grafico', trazas, layout, { responsive: true, displaylogo: false });
+  enlazarClics();
+  mostrarLeyenda(abierto, porTipo);
+  $('resumen').textContent = `${nOt} OT · ${x.length} departamentos visibles · máx. ${max} fallas/depto`
+    + ' · Doble clic en una burbuja para ver sus fallas por tipo';
+}
+
+// Plotly no expone doble clic por punto en 3D: se detectan dos clics seguidos en el mismo depto
+let ultimoClic = { i: -1, t: 0 }, clicsEnlazados = false;
+function enlazarClics() {
+  if (clicsEnlazados) return;
+  clicsEnlazados = true;
+  $('grafico').on('plotly_click', ev => {
+    const pt = ev.points && ev.points[0];
+    if (!pt) return;
+    let i;
+    if (pt.curveNumber === 0) i = puntoADepto[pt.pointNumber];
+    else if (pt.curveNumber === 2) i = abierto;  // el núcleo de la molécula
+    else return;
+    const ahora = Date.now();
+    if (i === ultimoClic.i && ahora - ultimoClic.t < 450) {
+      abierto = abierto === i ? -1 : i;
+      ultimoClic = { i: -1, t: 0 };
+      actualizar();
+    } else {
+      ultimoClic = { i, t: ahora };
+    }
+  });
 }
 
 $('selEdificio').addEventListener('change', () => { actualizarPisos(); actualizar(); });
@@ -428,7 +570,11 @@ btn.addEventListener('click', () => {
 document.addEventListener('fullscreenchange', () => {
   etiqueta(!!document.fullscreenElement); redimensionar();
 });
-document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && enFallback()) fallback(false); });
+document.addEventListener('keydown', ev => {
+  if (ev.key !== 'Escape') return;
+  if (abierto >= 0) { abierto = -1; actualizar(); return; }
+  if (enFallback()) fallback(false);
+});
 
 // Sin Plotly o sin WebGL el gráfico 3D no puede dibujarse: avisar en vez de quedar en blanco
 function webglDisponible() {

@@ -17,6 +17,7 @@ Uso en Colab:
 # ---------------------------------------------------------------------------
 import re
 import math
+import time
 import subprocess
 import sys
 
@@ -44,6 +45,8 @@ RUTA_EXCEL = "/content/OT_CLASIFICADAS_ARBOL (1).xlsx"
 COL_FECHA = "Creado"
 COL_UNIDAD = "unidad"
 COL_CLASE = "ESTADO CLASIFICACIÓN"  # opcional: habilita el filtro por clasificación
+COL_TIPO = "ITEM"                   # opcional: tipo de falla para las sub-burbujas
+SIN_TIPO = "Sin ítem"
 MARGEN_EJES = 1.0          # margen estático de seguridad en X/Y/Z
 GRID_MIN, GRID_MAX = 3, 7  # grilla dinámica 3x3 … 7x7
 TODOS = "Todos"
@@ -175,6 +178,9 @@ df.loc[varias, "Edificio"] = (df.loc[varias, "Edificio"] + " · "
 col_clase = buscar_columna(df, COL_CLASE, ("clasificacion", "estado clasificacion"))
 df["Clase"] = (df[col_clase].fillna("Sin clasificación").astype(str).str.strip()
                if col_clase else "Sin clasificación")
+col_tipo = buscar_columna(df, COL_TIPO, ("item", "tipo falla"))
+df["Tipo"] = (df[col_tipo].fillna(SIN_TIPO).astype(str).str.strip().replace("", SIN_TIPO)
+              if col_tipo else SIN_TIPO)
 df["Depto_ID"] = (df["Edificio"] + " | P" + df["Piso_Num"].astype(str)
                   + "-D" + df["Depto_Num"].astype(str).str.zfill(2))
 print(f"Registros válidos: {len(df)} de {filas_antes} "
@@ -241,6 +247,32 @@ def tamano_marcador(d):
     return 34
 
 
+# Colores categóricos fijos por tipo (legibles sobre fondo negro); se reciclan si faltan
+COLORES_TIPO = [
+    "#FD3216", "#00FE35", "#6A76FC", "#FED4C4", "#FE00CE", "#0DF9FF", "#F6F926",
+    "#FF9616", "#479B55", "#EEA6FB", "#DC587D", "#D626FF", "#6E899C", "#00B5F7",
+    "#B68E00", "#C9FBE5", "#FF0092", "#22FFA7", "#E3EE9E", "#86CE00", "#BC7196",
+    "#7E7DCD", "#FC6955", "#E48F72", "#FFFFFF", "#A0A0FF", "#FFD700",
+]
+COLOR_TIPO = {}
+for t in df["Tipo"].value_counts().index:
+    COLOR_TIPO[t] = ("#8A8F98" if t == SIN_TIPO
+                     else COLORES_TIPO[len([k for k in COLOR_TIPO if k != SIN_TIPO]) % len(COLORES_TIPO)])
+
+
+def posiciones_esfera(n, r):
+    """Reparte n puntos sobre una esfera (espiral de Fibonacci), corrigiendo la
+    proporción de los ejes para que la molécula se vea redonda."""
+    rz = r * (span_z / ASPECTO["z"]) / ((2 * LIM_XY) / ASPECTO["x"])
+    oro = math.pi * (3 - math.sqrt(5))
+    out = []
+    for k in range(n):
+        yk = 0.0 if n == 1 else 1 - (k / (n - 1)) * 2
+        rad, th = math.sqrt(1 - yk * yk), k * oro
+        out.append((math.cos(th) * rad * r, math.sin(th) * rad * r, yk * rz))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # 5. FIGURA (tema oscuro, ejes congelados)
 # ---------------------------------------------------------------------------
@@ -261,13 +293,25 @@ fig = go.FigureWidget(
                           tickfont=dict(color="#ddd"), thickness=14),
         ),
         text=[], hovertemplate="%{text}<extra></extra>",
-    )],
+    ),
+        # Trazas de la "molécula" (vacías hasta hacer doble clic en un depto)
+        go.Scatter3d(x=[], y=[], z=[], mode="lines", hoverinfo="skip",
+                     line=dict(color="#9a9aae", width=4)),
+        go.Scatter3d(x=[], y=[], z=[], mode="markers", text=[],
+                     hovertemplate="%{text}<extra></extra>",
+                     marker=dict(size=18, color="#ffffff", opacity=1)),
+        go.Scatter3d(x=[], y=[], z=[], mode="markers+text", text=[], hovertext=[],
+                     hovertemplate="%{hovertext}<extra></extra>",
+                     textposition="middle center", textfont=dict(color="#000", size=11),
+                     marker=dict(size=[], color=[], opacity=1)),
+    ],
     layout=go.Layout(
         template="plotly_dark",
         paper_bgcolor="#000000", plot_bgcolor="#000000",
         height=720, margin=dict(l=0, r=0, t=50, b=0),
         title=dict(text="Maqueta 3D de Fallas por Departamento", font=dict(color="#eee")),
         uirevision="fijo",  # conserva la cámara al actualizar datos
+        showlegend=False,
         scene=dict(
             xaxis=dict(range=RANGO_X, title="X (grilla)", **estilo_eje),
             yaxis=dict(range=RANGO_Y, title="Y (grilla)", **estilo_eje),
@@ -301,6 +345,17 @@ sl_fechas = widgets.SelectionRangeSlider(
 )
 lbl_resumen = widgets.HTML()
 
+# Simbología del depto desplegado (oculta mientras no haya ninguno)
+html_leyenda = widgets.HTML()
+btn_cerrar = widgets.Button(description="Cerrar", layout=widgets.Layout(width="90px"))
+caja_leyenda = widgets.VBox(
+    [html_leyenda, btn_cerrar],
+    layout=widgets.Layout(display="none", width="290px", padding="10px 12px",
+                          border="1px solid #2c2c3a", margin="50px 8px 0 0"),
+)
+caja_leyenda.add_class("ot-leyenda")
+estado = {"abierto": None, "puntos": [], "ultimo": (None, 0.0)}
+
 
 def actualizar_pisos(*_):
     base = df if dd_edificio.value == TODOS else df[df["Edificio"] == dd_edificio.value]
@@ -323,6 +378,10 @@ def actualizar_grafico(*_):
     # Densidad dentro del rango filtrado; posiciones y escalas siguen fijas
     sub = (df[m].groupby(["Depto_ID", "Edificio", "Piso_Num", "Depto_Num", "X", "Y", "Z"])
                .size().reset_index(name="Densidad"))
+    estado["puntos"] = sub["Depto_ID"].tolist()
+    if estado["abierto"] not in estado["puntos"]:
+        estado["abierto"] = None  # el filtro dejó fuera al depto abierto
+    abierto = estado["abierto"]
 
     textos = [f"<b>{r.Edificio}</b><br>Piso {r.Piso_Num} · Depto {r.Depto_Num}"
               f"<br>Fallas en rango: <b>{r.Densidad}</b>"
@@ -334,6 +393,8 @@ def actualizar_grafico(*_):
         t.marker.size = [tamano_marcador(d) for d in sub["Densidad"]]
         t.marker.color = sub["Densidad"].tolist()
         t.text = textos
+        t.marker.opacity = 0.12 if abierto else 0.9  # oscurece el resto al desplegar
+        dibujar_molecula(df[m & (df["Depto_ID"] == abierto)] if abierto else None)
         # Re-afirma los límites absolutos para que nada se auto-escale
         fig.layout.scene.xaxis.range = RANGO_X
         fig.layout.scene.yaxis.range = RANGO_Y
@@ -341,12 +402,80 @@ def actualizar_grafico(*_):
 
     lbl_resumen.value = (f"<span style='color:#9aa0a6'>{int(m.sum())} OT · "
                          f"{len(sub)} departamentos visibles · máx. "
-                         f"{int(sub['Densidad'].max()) if len(sub) else 0} fallas/depto</span>")
+                         f"{int(sub['Densidad'].max()) if len(sub) else 0} fallas/depto · "
+                         f"Doble clic en una burbuja para ver sus fallas por tipo</span>")
 
 
 dd_edificio.observe(lambda ch: (actualizar_pisos(), actualizar_grafico()), names="value")
 dd_piso.observe(actualizar_grafico, names="value")
 dd_clase.observe(actualizar_grafico, names="value")
+
+
+def dibujar_molecula(ots_depto):
+    """Sub-burbujas por tipo alrededor del depto: tamaño = nº de OT, color = tipo."""
+    enlaces, nucleo, subs = fig.data[1], fig.data[2], fig.data[3]
+    if ots_depto is None or ots_depto.empty:
+        for tr in (enlaces, nucleo, subs):
+            tr.x, tr.y, tr.z = [], [], []
+        caja_leyenda.layout.display = "none"
+        return
+    r0 = ots_depto.iloc[0]
+    cx, cy, cz = float(r0["X"]), float(r0["Y"]), float(r0["Z"])
+    conteo = ots_depto["Tipo"].value_counts()
+    max_n = int(conteo.iloc[0])
+    lx, ly, lz, sx, sy, sz = [], [], [], [], [], []
+    for (dx, dy, dz) in posiciones_esfera(len(conteo), 1.4):
+        lx += [cx, cx + dx, None]; ly += [cy, cy + dy, None]; lz += [cz, cz + dz, None]
+        sx.append(cx + dx); sy.append(cy + dy); sz.append(cz + dz)
+    enlaces.x, enlaces.y, enlaces.z = lx, ly, lz
+    nucleo.x, nucleo.y, nucleo.z = [cx], [cy], [cz]
+    nucleo.text = [f"<b>{r0['Edificio']}</b><br>Piso {r0['Piso_Num']} · Depto {r0['Depto_Num']}"]
+    subs.x, subs.y, subs.z = sx, sy, sz
+    subs.marker.size = [12 + 26 * math.sqrt(n / max_n) for n in conteo]
+    subs.marker.color = [COLOR_TIPO[t] for t in conteo.index]
+    subs.text = [str(n) for n in conteo]
+    subs.hovertext = [f"<b>{t}</b><br>{n} OT" for t, n in conteo.items()]
+
+    filas = "".join(
+        f"<div style='display:flex;align-items:center;gap:8px;margin:3px 0'>"
+        f"<span style='width:12px;height:12px;border-radius:50%;background:{COLOR_TIPO[t]};"
+        f"flex:none'></span><span style='flex:1'>{t}</span><b>{n}</b></div>"
+        for t, n in conteo.items())
+    html_leyenda.value = (
+        f"<div style='color:#ddd;font-size:13px'><div style='color:#fff;font-weight:600'>"
+        f"{r0['Edificio']}</div><div style='color:#9aa0a6;font-size:12px;margin-bottom:8px'>"
+        f"Piso {r0['Piso_Num']} · Depto {r0['Depto_Num']} · {len(ots_depto)} OT por tipo</div>"
+        f"{filas}<div style='color:#777;font-size:11px;margin-top:8px'>"
+        f"Doble clic en otra burbuja para cambiar</div></div>")
+    caja_leyenda.layout.display = "flex"
+
+
+def al_hacer_clic(trace, points, selector):
+    """Plotly no expone doble clic por punto en 3D: se detectan dos clics seguidos."""
+    if not points.point_inds:
+        return
+    if trace is fig.data[0]:
+        depto = estado["puntos"][points.point_inds[0]]
+    else:
+        depto = estado["abierto"]  # clic en el núcleo de la molécula
+    ahora = time.time()
+    previo, t_previo = estado["ultimo"]
+    if depto == previo and ahora - t_previo < 0.6:
+        estado["abierto"] = None if estado["abierto"] == depto else depto
+        estado["ultimo"] = (None, 0.0)
+        actualizar_grafico()
+    else:
+        estado["ultimo"] = (depto, ahora)
+
+
+def cerrar_molecula(_=None):
+    estado["abierto"] = None
+    actualizar_grafico()
+
+
+fig.data[0].on_click(al_hacer_clic)
+fig.data[2].on_click(al_hacer_clic)
+btn_cerrar.on_click(cerrar_molecula)
 sl_fechas.observe(actualizar_grafico, names="value")
 
 # ---------------------------------------------------------------------------
@@ -431,6 +560,9 @@ CSS_FULLSCREEN = """
     box-shadow:0 6px 20px rgba(255,26,26,.45);}
   .ot-fs-btn:active{transform:translateY(0);}
   .ot-viz-container{background:#000 !important;border-radius:8px;padding:6px;}
+  .ot-leyenda{background:rgba(8,8,14,.92) !important;border-radius:10px;align-self:flex-start;}
+  .ot-leyenda button{background:#222 !important;color:#eee !important;border:1px solid #444 !important;
+    border-radius:6px !important;}
   /* Fallback de alta prioridad: maximiza el contenedor a toda la ventana */
   .ot-viz-container.ot-fs-fallback{
     position:fixed !important;top:0 !important;left:0 !important;
@@ -461,7 +593,8 @@ btn_fullscreen = widgets.HTML(
 # ---------------------------------------------------------------------------
 fila_filtros = widgets.HBox([dd_edificio, dd_piso, dd_clase, btn_fullscreen],
                             layout=widgets.Layout(align_items="center", gap="12px"))
-panel = widgets.VBox([fila_filtros, sl_fechas, lbl_resumen, fig])
+panel = widgets.VBox([fila_filtros, sl_fechas, lbl_resumen,
+                      widgets.HBox([caja_leyenda, fig])])
 panel.add_class("ot-viz-container")
 
 actualizar_pisos()
