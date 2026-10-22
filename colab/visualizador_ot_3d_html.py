@@ -276,6 +276,8 @@ __PLOTLY__
     background: linear-gradient(90deg, #1f4fff, #8a2be2, #ff1a1a); }
   #textoFechas { color: #eee; font-variant-numeric: tabular-nums; }
   #resumen { color: #9aa0a6; font-size: 13px; }
+  .aviso-error { color: #ffb86b; border: 1px solid #5a3a1a; border-radius: 8px;
+    padding: 12px 14px; max-width: 70ch; }
   #grafico { flex: 1 1 auto; min-height: 560px; width: 100%; }
   .btn-fs { margin-left: auto; background: linear-gradient(135deg, #1f4fff, #8a2be2 55%, #ff1a1a);
     color: #fff; border: none; border-radius: 10px; padding: 8px 18px;
@@ -428,8 +430,26 @@ document.addEventListener('fullscreenchange', () => {
 });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && enFallback()) fallback(false); });
 
+// Sin Plotly o sin WebGL el gráfico 3D no puede dibujarse: avisar en vez de quedar en blanco
+function webglDisponible() {
+  try {
+    const c = document.createElement('canvas');
+    return !!(window.WebGLRenderingContext && (c.getContext('webgl') || c.getContext('experimental-webgl')));
+  } catch (e) { return false; }
+}
+function mostrarError(msg) {
+  $('grafico').innerHTML = '<p class="aviso-error">' + msg + '</p>';
+}
 actualizarPisos();
-actualizar();
+if (typeof Plotly === 'undefined') {
+  mostrarError('No se pudo cargar la librería de gráficos (Plotly). Revisa tu conexión '
+    + 'o genera el archivo sin la opción --cdn.');
+} else if (!webglDisponible()) {
+  mostrarError('Tu navegador no tiene WebGL activo, y los gráficos 3D lo necesitan. Activa la '
+    + 'aceleración por hardware en la configuración del navegador o prueba con otro navegador.');
+} else {
+  try { actualizar(); } catch (e) { mostrarError('Error al dibujar el gráfico: ' + e.message); }
+}
 </script>
 </body>
 </html>
