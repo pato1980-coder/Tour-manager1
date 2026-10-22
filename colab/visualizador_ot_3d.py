@@ -473,7 +473,7 @@ def actualizar_grafico(*_):
     lbl_resumen.value = (f"<span style='color:#9aa0a6'>{int(m.sum())} OT · "
                          f"{len(sub)} departamentos visibles · máx. "
                          f"{int(sub['Densidad'].max()) if len(sub) else 0} fallas/depto · "
-                         f"Doble clic en una burbuja para ver sus fallas por tipo</span>")
+                         f"Clic en una burbuja para ver sus fallas por tipo</span>")
 
 
 dd_edificio.observe(lambda ch: (actualizar_pisos(), actualizar_grafico()), names="value")
@@ -532,12 +532,17 @@ def dibujar_molecula(ots_depto):
         f"{r0['Edificio']}</div><div style='color:#9aa0a6;font-size:12px;margin-bottom:8px'>"
         f"Piso {r0['Piso_Num']} · {r0['Depto_Txt']} · {len(ots_depto)} OT por tipo</div>"
         f"{filas}<div style='color:#777;font-size:11px;margin-top:8px'>"
-        f"Doble clic en otra burbuja para cambiar</div></div>")
+        f"Clic en otra burbuja para cambiar</div></div>")
     caja_leyenda.layout.display = "flex"
 
 
 def al_hacer_clic(trace, points, selector):
-    """Plotly no expone doble clic por punto en 3D: se detectan dos clics seguidos."""
+    """Un clic abre o cierra la molécula del depto.
+
+    En 3D, Plotly solo registra el clic si el botón sigue apretado durante un cuadro de
+    dibujo (un doble clic rápido casi nunca llega), y un clic largo puede llegar repetido:
+    se ignoran los clics del mismo depto durante 0,8 s tras abrir o cerrar.
+    """
     if not points.point_inds:
         return
     if trace is fig.data[0]:
@@ -546,12 +551,11 @@ def al_hacer_clic(trace, points, selector):
         depto = estado["abierto"]  # clic en el núcleo de la molécula
     ahora = time.time()
     previo, t_previo = estado["ultimo"]
-    if depto == previo and ahora - t_previo < 0.6:
-        estado["abierto"] = None if estado["abierto"] == depto else depto
-        estado["ultimo"] = (None, 0.0)
-        actualizar_grafico()
-    else:
-        estado["ultimo"] = (depto, ahora)
+    if depto == previo and ahora - t_previo < 0.8:
+        return
+    estado["ultimo"] = (depto, ahora)
+    estado["abierto"] = None if estado["abierto"] == depto else depto
+    actualizar_grafico()
 
 
 def cerrar_molecula(_=None):

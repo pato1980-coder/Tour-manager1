@@ -598,6 +598,7 @@ function actualizar() {
     trazas.push({ type: 'scatter3d', mode: 'lines', x: lx, y: ly, z: lz, hoverinfo: 'skip',
       showlegend: false, line: { color: '#3b4058', width: 2 } });
   }
+  bajoCursor = -1;  // los índices de punto cambian al redibujar
   Plotly.react('grafico', trazas, layout, { responsive: true, displaylogo: false });
   enlazarClics();
   mostrarLeyenda(abierto, porTipo);
@@ -605,34 +606,42 @@ function actualizar() {
     + ' · Doble clic en una burbuja para ver sus fallas por tipo';
 }
 
-// Plotly no expone doble clic por punto en 3D: se detectan dos clics seguidos en el mismo depto
-let ultimoClic = { i: -1, t: 0 }, clicsEnlazados = false;
+// En 3D, plotly_click solo llega si el botón sigue apretado durante un cuadro de dibujo,
+// así que un doble clic rápido casi nunca se registra. Se usa el hover (que sí es fiable)
+// para saber qué depto está bajo el cursor y el evento dblclick nativo del navegador.
+let bajoCursor = -1, clicsEnlazados = false;
 function enlazarClics() {
   if (clicsEnlazados) return;
   clicsEnlazados = true;
-  $('grafico').on('plotly_click', ev => {
+  const g = $('grafico');
+  g.on('plotly_hover', ev => {
     const pt = ev.points && ev.points[0];
     if (!pt) return;
-    let i;
-    if (pt.curveNumber === 0) i = puntoADepto[pt.pointNumber];
-    else if (pt.curveNumber === 2) i = abierto;  // el núcleo de la molécula
-    else return;
-    const ahora = Date.now();
-    if (i === ultimoClic.i && ahora - ultimoClic.t < 450) {
-      abierto = abierto === i ? -1 : i;
-      ultimoClic = { i: -1, t: 0 };
-      actualizar();
-    } else {
-      ultimoClic = { i, t: ahora };
-    }
+    if (pt.curveNumber === 0) bajoCursor = puntoADepto[pt.pointNumber];
+    else if (pt.curveNumber === 2) bajoCursor = abierto;  // el núcleo de la molécula
+    else bajoCursor = -1;
+  });
+  g.on('plotly_unhover', () => { bajoCursor = -1; });
+  g.addEventListener('dblclick', () => {
+    if (bajoCursor < 0) return;
+    abierto = abierto === bajoCursor ? -1 : bajoCursor;
+    actualizar();
   });
 }
 
-$('selEdificio').addEventListener('change', () => { actualizarPisos(); actualizar(); });
-$('selPiso').addEventListener('change', actualizar);
-$('selClase').addEventListener('change', actualizar);
-$('desde').addEventListener('input', actualizar);
-$('hasta').addEventListener('input', actualizar);
+// Redibujar el 3D es caro: se agrupan los cambios para dibujar como máximo una vez por cuadro
+let redibujoPendiente = false;
+function programarActualizacion() {
+  if (redibujoPendiente) return;
+  redibujoPendiente = true;
+  requestAnimationFrame(() => { redibujoPendiente = false; actualizar(); });
+}
+
+$('selEdificio').addEventListener('change', () => { actualizarPisos(); programarActualizacion(); });
+$('selPiso').addEventListener('change', programarActualizacion);
+$('selClase').addEventListener('change', programarActualizacion);
+$('desde').addEventListener('input', programarActualizacion);
+$('hasta').addEventListener('input', programarActualizacion);
 
 // Pantalla completa: API nativa con fallback CSS
 const caja = $('contenedor'), btn = $('btnFs');
