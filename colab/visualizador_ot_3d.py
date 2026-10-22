@@ -50,8 +50,8 @@ TODOS = "Todos"
 
 # Escala continua Azul -> Morado -> Rojo
 ESCALA_COLORES = [
-    [0.00, "#1f4fff"],
-    [0.25, "#4b3cff"],
+    [0.00, "#0b1a7a"],
+    [0.25, "#2a1f9e"],
     [0.50, "#8a2be2"],
     [0.75, "#d0207a"],
     [1.00, "#ff1a1a"],
@@ -236,7 +236,9 @@ def tamano_marcador(d):
         return 8
     if d <= 10:
         return 14
-    return 22
+    if d <= 15:
+        return 22
+    return 34
 
 
 # ---------------------------------------------------------------------------

@@ -38,8 +38,8 @@ GRID_MIN, GRID_MAX = 3, 7  # grilla dinámica 3x3 … 7x7
 
 # Escala continua Azul -> Morado -> Rojo
 ESCALA_COLORES = [
-    [0.00, "#1f4fff"],
-    [0.25, "#4b3cff"],
+    [0.00, "#0b1a7a"],
+    [0.25, "#2a1f9e"],
     [0.50, "#8a2be2"],
     [0.75, "#d0207a"],
     [1.00, "#ff1a1a"],
@@ -322,7 +322,7 @@ const f0 = new Date(M.fecha0 + 'T00:00:00');
 const fmt = i => new Date(f0.getTime() + i * 864e5).toLocaleDateString('es-CL');
 const $ = id => document.getElementById(id);
 
-function tamano(d) { return d <= 1 ? 4 : d <= 5 ? 8 : d <= 10 ? 14 : 22; }
+function tamano(d) { return d <= 1 ? 4 : d <= 5 ? 8 : d <= 10 ? 14 : d <= 15 ? 22 : 34; }
 function opciones(sel, valores, actual) {
   sel.innerHTML = '';
   [TODOS, ...valores].forEach(v => sel.add(new Option(v, v)));
