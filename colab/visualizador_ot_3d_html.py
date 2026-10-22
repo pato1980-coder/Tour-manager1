@@ -746,6 +746,7 @@ __PLOTLY__
       </select></label>
       <input type="range" id="tlDia" min="0" step="1" aria-label="Fecha del time lapse">
       <span id="tlTexto"></span>
+      <label><input type="checkbox" id="tlGiro"> Girar cámara</label>
       <button type="button" id="tlSalir">Salir del time lapse</button>
     </div>
   </div>
@@ -952,7 +953,16 @@ function actualizar() {
       showlegend: false, line: { color: '#3b4058', width: 2 } });
   }
   bajoCursor = -1;  // los índices de punto cambian al redibujar
+  // Redibujar la escena 3D le reaplica la última cámara guardada, que puede no incluir un zoom
+  // con la rueda recién hecho: se toma la que se ve ahora y se vuelve a aplicar tras redibujar.
+  // En el time lapse con giro automático, además, se avanza un poco alrededor del eje vertical.
+  let cam = camaraViva();
+  if (cam && tl.activo && tl.corriendo && $('tlGiro').checked) {
+    const ang = 0.02, e = cam.eye, cx = Math.cos(ang), sx = Math.sin(ang);
+    cam = Object.assign({}, cam, { eye: { x: e.x * cx - e.y * sx, y: e.x * sx + e.y * cx, z: e.z } });
+  }
   Plotly.react('grafico', trazas, layout, { responsive: true, displaylogo: false });
+  if (cam) Plotly.relayout('grafico', { 'scene.camera': cam });
   enlazarClics();
   mostrarLeyenda(abierto, porTipo);
   if (tl.activo) {
@@ -1033,8 +1043,41 @@ let redibujoPendiente = false;
 function programarActualizacion() {
   if (redibujoPendiente) return;
   redibujoPendiente = true;
-  requestAnimationFrame(() => { redibujoPendiente = false; actualizar(); });
+  requestAnimationFrame(() => {
+    redibujoPendiente = false;
+    if (arrastrando) return;  // se pone al día al soltar el mouse
+    actualizar();
+  });
 }
+
+// Cámara que se ve en pantalla (incluye el giro que el usuario está haciendo)
+function camaraViva() {
+  const fl = $('grafico')._fullLayout, sc = fl && fl.scene && fl.scene._scene;
+  return sc && sc.getCamera ? sc.getCamera() : null;
+}
+
+// Cada redibujo reinicia los controles del mouse de la escena 3D y cortaría el giro: mientras
+// se arrastra no se redibuja (el time lapse sigue contando días) y al soltar se pone al día
+let arrastrando = false;
+$('grafico').addEventListener('pointerdown', () => { arrastrando = true; }, true);
+// El zoom con la rueda de Plotly no sobrevive a los redibujos seguidos del time lapse: mientras
+// se reproduce, la rueda acerca o aleja la cámara directamente (mismo sentido que Plotly) y el
+// siguiente cuadro la conserva. En pausa o fuera del time lapse actúa el zoom normal de Plotly.
+$('grafico').addEventListener('wheel', ev => {
+  if (!(tl.activo && tl.corriendo)) return;
+  ev.preventDefault(); ev.stopPropagation();
+  const cam = camaraViva();
+  if (!cam) return;
+  const f = Math.exp(ev.deltaY * 0.0015), e = cam.eye;
+  Plotly.relayout('grafico', { 'scene.camera': Object.assign({}, cam, { eye: { x: e.x * f, y: e.y * f, z: e.z * f } }) });
+}, { capture: true, passive: false });
+function soltar() {
+  if (!arrastrando) return;
+  arrastrando = false;
+  if (tl.activo) programarActualizacion();
+}
+// También al soltar fuera de la ventana o si la pestaña pierde el foco, para no quedar congelado
+['pointerup', 'pointercancel', 'blur'].forEach(ev => window.addEventListener(ev, soltar));
 
 $('selEdificio').addEventListener('change', () => { actualizarPisos(); programarActualizacion(); });
 $('selPiso').addEventListener('change', programarActualizacion);

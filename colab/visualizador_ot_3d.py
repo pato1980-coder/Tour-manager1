@@ -793,10 +793,12 @@ def actualizar_grafico(*_):
         t.marker.opacity = 0.12 if abierto else 0.9  # oscurece el resto al desplegar
         dibujar_molecula(df[m & (df["Depto_ID"] == abierto)] if abierto else None)
         dibujar_contorno()
-        # Re-afirma los límites absolutos para que nada se auto-escale
-        fig.layout.scene.xaxis.range = RANGO_X
-        fig.layout.scene.yaxis.range = RANGO_Y
-        fig.layout.scene.zaxis.range = RANGO_Z
+        # Re-afirma los límites absolutos para que nada se auto-escale (no en cada cuadro del
+        # time lapse: ya están fijos y tocar el layout redibuja la escena y corta el giro)
+        if not escala_tl:
+            fig.layout.scene.xaxis.range = RANGO_X
+            fig.layout.scene.yaxis.range = RANGO_Y
+            fig.layout.scene.zaxis.range = RANGO_Z
 
     if escala_tl:
         tl_lbl.value = (f"<span style='color:#eee'>{dia:%d-%m-%Y} · {int(m.sum())} OT activas "
