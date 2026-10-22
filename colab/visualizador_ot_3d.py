@@ -346,6 +346,41 @@ PLANTAS = {
             [(22.8, 17.8), (40.1, 17.8), (40.1, -17.8), (22.8, -17.8), (22.8, 17.8)],  # ala torre A
         ],
     },
+    # Somma Vista Calan, láminas 2101-A-105 a A-109 (escala 1:75): una barra con pasillo
+    # central dividida al medio en "Edificio S" (poniente) y "Edificio N" (oriente), en
+    # espejo. Se asume SVCA = Edificio S y SVCB = Edificio N (la lámina no lo indica).
+    # Los pisos 2 a 9 tienen la misma planta (A-106, pisos 3 al 7); el piso 10 es el
+    # "piso retirado" (A-109), más angosto y con otra numeración, alineado con las demás
+    # por el rótulo de la línea divisoria. Las etiquetas están junto al pasillo; cada
+    # punto se llevó al centro de su fila de departamentos.
+    "Somma Vista Calan": {
+        "escala": 3 / 34.3,
+        "unir_torres": True,
+        "deptos": {
+            ("SVCA", 1): (-6.5, 5.3), ("SVCA", 2): (-10.2, 5.3), ("SVCA", 3): (-13.9, 5.3),
+            ("SVCA", 4): (-16.9, 5.3), ("SVCA", 5): (-22.9, 5.3), ("SVCA", 6): (-28.1, 0.1),
+            ("SVCA", 7): (-26.9, -4.2), ("SVCA", 8): (-22.8, -4.2), ("SVCA", 9): (-11.7, -4.2),
+            ("SVCA", 10): (-3.0, -4.2), ("SVCB", 1): (6.2, 5.3), ("SVCB", 2): (9.9, 5.3),
+            ("SVCB", 3): (13.6, 5.3), ("SVCB", 4): (16.7, 5.3), ("SVCB", 5): (22.6, 5.3),
+            ("SVCB", 6): (27.8, 0.1), ("SVCB", 7): (26.6, -4.2), ("SVCB", 8): (22.5, -4.2),
+            ("SVCB", 9): (11.3, -4.2), ("SVCB", 10): (2.7, -4.2),
+        },
+        "deptos_por_piso": [
+            ((10, 10), {
+                ("SVCA", 1): (-7.4, 4.0), ("SVCA", 2): (-21.6, -0.1), ("SVCA", 3): (-20.4, -3.3),
+                ("SVCA", 4): (-11.5, -3.3), ("SVCA", 5): (-2.9, -3.3), ("SVCB", 1): (7.4, 4.0),
+                ("SVCB", 2): (20.3, 4.0), ("SVCB", 3): (23.0, -0.0), ("SVCB", 4): (21.7, -3.3),
+                ("SVCB", 5): (11.5, -3.3), ("SVCB", 6): (2.9, -3.3),
+            }),
+        ],
+        # Contorno: la barra en los pisos 2 a 9 y el piso retirado (10), más angosto;
+        # la planta es en espejo, así que el contorno es simétrico respecto de la división
+        "pisos_contorno": [(2, 9), (10, 10)],
+        "contornos": [
+            [(-34.3, 9.9), (34.3, 9.9), (34.3, -9.9), (-34.3, -9.9), (-34.3, 9.9)],
+            [(-31.4, 7.2), (31.4, 7.2), (31.4, -6.2), (-31.4, -6.2), (-31.4, 7.2)],
+        ],
+    },
 }
 TODOS = "Todos"
 
