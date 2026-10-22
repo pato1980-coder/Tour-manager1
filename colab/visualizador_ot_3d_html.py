@@ -87,6 +87,7 @@ PLANTAS = {
             ("B", 19): (-10.2, -30.6), ("B", 20): (-14.3, -30.1),
         },
         # Recorrido de cada torre uniendo sus deptos en orden (anillo alrededor del patio)
+        "torres_contorno": ["A", "B"],  # cada contorno solo en los pisos de su torre
         "contornos": [
             [(-2.6, 13.2), (3.5, 18.9), (6.2, 21.4), (12.8, 25.7), (21.0, 31.4), (20.7, 23.0),
              (18.3, 19.4), (18.3, 15.9), (18.3, 12.5), (20.6, 7.1), (8.8, 8.6), (5.9, 6.9),
@@ -95,6 +96,29 @@ PLANTAS = {
              (-12.7, -1.7), (-8.4, 5.4), (-6.5, 8.1), (2.5, 2.1), (1.0, -4.1), (-2.1, -7.6),
              (-2.4, -11.3), (-2.6, -14.5), (-3.2, -18.3), (-3.2, -21.7), (0.5, -31.4),
              (-3.4, -31.1), (-7.2, -30.9), (-10.2, -30.6), (-14.3, -30.1), (-21.0, -29.3)],
+        ],
+    },
+    # Ronda Lo Ovalle, lámina A05 "Planta general piso tipo" (escala 1:125), que muestra
+    # las dos torres en su posición real: Boreal (deptos 1–9) hacia Av. Lo Ovalle y
+    # Austral (deptos 10–17) hacia calle Jorge Cáceres. Las etiquetas de la lámina están
+    # junto al pasillo central; cada punto se llevó al centro de su lado del pasillo.
+    "Ronda Lo Ovalle": {
+        "escala": 3 / 42.6,
+        "unir_torres": True,
+        "deptos": {
+            ("Boreal", 1): (-7.1, 33.2), ("Boreal", 2): (-7.1, 35.0), ("Boreal", 3): (0.4, 35.0),
+            ("Boreal", 4): (0.4, 30.2), ("Boreal", 5): (0.4, 25.7), ("Boreal", 6): (0.4, 16.2),
+            ("Boreal", 7): (0.4, 10.3), ("Boreal", 8): (-7.1, 10.3), ("Boreal", 9): (-7.1, 14.8),
+            ("Austral", 10): (-2.3, -12.6), ("Austral", 11): (-2.3, -8.1),
+            ("Austral", 12): (5.9, -12.8), ("Austral", 13): (5.9, -16.0),
+            ("Austral", 14): (5.9, -25.8), ("Austral", 15): (5.9, -30.9),
+            ("Austral", 16): (-2.3, -35.5), ("Austral", 17): (-2.3, -31.1),
+        },
+        # Contorno de cada torre (muros exteriores), solo en los pisos de esa torre
+        "torres_contorno": ["Boreal", "Austral"],
+        "contornos": [
+            [(-10.0, 42.6), (5.0, 42.6), (5.0, 5.0), (-10.0, 5.0), (-10.0, 42.6)],
+            [(-6.4, -0.3), (10.0, -0.3), (10.0, -42.6), (-6.4, -42.6), (-6.4, -0.3)],
         ],
     },
 }
@@ -271,6 +295,15 @@ def asignar_coordenadas(grupo):
     return grupo
 
 
+def pisos_contorno(deptos, edificio, plano, k):
+    """Pisos donde dibujar el contorno k: los de su torre si el plano la indica."""
+    sel = deptos["Edificio"] == edificio
+    torres = plano.get("torres_contorno")
+    if torres:
+        sel &= deptos["Torre"] == torres[k]
+    return sorted(int(z) for z in deptos.loc[sel, "Z"].unique())
+
+
 def construir_modelo(df):
     # Densidad acumulada de fallas por departamento único (todo el conjunto)
     deptos = (df.groupby(["Depto_ID", "Edificio", "Torre", "Piso_Num", "Depto_Num", "Depto_Txt"])
@@ -331,11 +364,11 @@ def construir_modelo(df):
         "escala": ESCALA_COLORES,
         # Contornos de planta (en unidades de grilla) y pisos donde dibujarlos
         "plantas": {
-            ed: {
-                "contornos": [[[x * p["escala"], y * p["escala"]] for x, y in c]
-                              for c in p["contornos"]],
-                "pisos": sorted(deptos.loc[deptos["Edificio"] == ed, "Z"].astype(int).unique().tolist()),
-            }
+            ed: [
+                {"puntos": [[x * p["escala"], y * p["escala"]] for x, y in c],
+                 "pisos": pisos_contorno(deptos, ed, p, k)}
+                for k, c in enumerate(p["contornos"])
+            ]
             for ed, p in PLANTAS.items() if (deptos["Edificio"] == ed).any()
         },
     }
@@ -589,9 +622,9 @@ function actualizar() {
   const planta = M.plantas[e];
   if (planta) {  // edificio con plano real: dibuja el contorno en cada piso
     const lx = [], ly = [], lz = [];
-    planta.pisos.filter(z => p === TODOS || String(z) === p).forEach(z => {
-      planta.contornos.forEach(c => {
-        c.forEach(([px, py]) => { lx.push(px); ly.push(py); lz.push(z); });
+    planta.forEach(c => {
+      c.pisos.filter(z => p === TODOS || String(z) === p).forEach(z => {
+        c.puntos.forEach(([px, py]) => { lx.push(px); ly.push(py); lz.push(z); });
         lx.push(null); ly.push(null); lz.push(null);
       });
     });
