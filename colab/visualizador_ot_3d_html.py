@@ -1053,7 +1053,7 @@ function paños() {
 
 // Corredores, escaleras y ascensores como cajas blanquecinas translúcidas: de suelo a cubierta,
 // o solo el tramo del piso elegido. hoverinfo 'skip' para no tapar las burbujas al pasar el mouse.
-const COLOR_COMUN = { Corredor: '#dde3f2', Escaleras: '#f4f4fa', Ascensores: '#e4eaff' };
+const COLOR_COMUN = { Corredor: '#6b7388', Escaleras: '#7a7f92', Ascensores: '#5d6680' };
 function trazasComunes(comunes, piso) {
   const porTipo = {};
   comunes.forEach(a => {
@@ -1204,14 +1204,16 @@ function actualizar() {
     particiones.forEach(t => t.pisos.filter(n => p === TODOS || String(n) === p).forEach(n => {
       const zz = (n - 1) * M.alturaPiso;
       t.segs.forEach(([x0, y0, x1, y1]) => {
-        qx.push(x0, x1, null); qy.push(y0, y1, null); qz.push(zz, zz, null);
+        // línea en el piso y en el cielo, y el muro entre ambas
+        qx.push(x0, x1, null, x0, x1, null); qy.push(y0, y1, null, y0, y1, null);
+        qz.push(zz, zz, null, zz + M.alturaPiso, zz + M.alturaPiso, null);
         muros.agregar(x0, y0, x1, y1, zz, zz + M.alturaPiso);
       });
       t.terrazas.forEach(([x0, y0, x1, y1]) => antepechos.agregar(x0, y0, x1, y1, zz, zz + 1));
     }));
     trazas.push({ type: 'scatter3d', mode: 'lines', x: qx, y: qy, z: qz, hoverinfo: 'skip',
       showlegend: false, line: { color: '#3b4058', width: 1 } });
-    trazas.push(muros.traza('#9aa3c0', 0.10), antepechos.traza('#cfd6ea', 0.35));
+    trazas.push(muros.traza('#8f98b8', 0.30), antepechos.traza('#cfd6ea', 0.35));
   }
   const comunes = M.comunes[e];
   if (comunes) trazas.push(...trazasComunes(comunes, p));

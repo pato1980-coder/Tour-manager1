@@ -763,7 +763,7 @@ def tamano_marcador(d):
 
 
 # Colores de las áreas comunes (cajas translúcidas): índices de traza 6 en adelante
-COLOR_COMUN = {"Corredor": "#dde3f2", "Escaleras": "#f4f4fa", "Ascensores": "#e4eaff"}
+COLOR_COMUN = {"Corredor": "#6b7388", "Escaleras": "#7a7f92", "Ascensores": "#5d6680"}
 
 # Colores categóricos fijos por tipo (legibles sobre fondo negro); se reciclan si faltan
 COLORES_TIPO = [
@@ -837,7 +837,7 @@ fig = go.FigureWidget(
         # Muros entre deptos (piso a cielo) y antepechos de terrazas (1 m): índices 9 y 10
         go.Mesh3d(x=[], y=[], z=[], i=[], j=[], k=[], name=nombre, color=color, opacity=opacidad,
                   flatshading=True, hoverinfo="skip", lighting=dict(ambient=0.9, diffuse=0.2, specular=0))
-        for nombre, color, opacidad in [("Muros", "#9aa3c0", 0.10), ("Antepechos", "#cfd6ea", 0.35)]
+        for nombre, color, opacidad in [("Muros", "#8f98b8", 0.30), ("Antepechos", "#cfd6ea", 0.35)]
     ],
     layout=go.Layout(
         template="plotly_dark",
@@ -1055,7 +1055,9 @@ def dibujar_contorno():
             for n in pisos:
                 zz = (int(n) - 1) * ALTURA_PISO
                 for (x0, y0), (x1, y1) in segs:
-                    fx += [x0, x1, None]; fy += [y0, y1, None]; fz += [zz, zz, None]
+                    # línea en el piso y en el cielo, y el muro entre ambas
+                    fx += [x0, x1, None, x0, x1, None]; fy += [y0, y1, None, y0, y1, None]
+                    fz += [zz, zz, None, zz + ALTURA_PISO, zz + ALTURA_PISO, None]
                     agregar_paño(muros, x0, y0, x1, y1, zz, zz + ALTURA_PISO)
                 for (x0, y0), (x1, y1) in plano.get("terrazas", {}).get(torre, []):
                     agregar_paño(antepechos, x0, y0, x1, y1, zz, zz + 1)
