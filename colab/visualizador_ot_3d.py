@@ -123,6 +123,27 @@ PLANTAS = {
         # de la cubierta. Boreal = Ed. Lo Ovalle (pisos 1–16, mirador +40,00, cubierta +43,15);
         # Austral = Ed. Jorge Cáceres (pisos 1–22, azotea +55,28). (índice de contorno, desde, hasta)
         "volumenes": [(0, 0.0, 43.15), (1, 0.2, 55.28)],
+        # Áreas comunes según la planta general A05: corredor central y núcleo (escaleras y
+        # ascensores) de cada torre, de suelo a cubierta. (tipo, (x0, y0, x1, y1), desde, hasta)
+        "areas_comunes": [
+            ("Corredor", (-4.12, 8.03, -2.49, 34.92), 0.0, 40.0),
+            ("Escaleras", (-10.21, 20.15, -6.68, 27.65), 0.0, 43.15),
+            ("Ascensores", (-6.68, 20.37, -4.26, 26.55), 0.0, 43.15),
+            ("Corredor", (0.82, -38.28, 2.36, -6.09), 0.2, 55.28),
+            ("Escaleras", (-5.14, -26.15, -2.05, -16.89), 0.2, 55.28),
+            ("Ascensores", (-2.05, -25.93, 0.82, -19.54), 0.2, 55.28),
+        ],
+        # Muros entre departamentos (planta A05), dibujados en cada piso de su torre
+        "particiones": {
+            "Boreal": [((-10.56, 33.82), (-4.12, 33.82)), ((-10.56, 27.96), (-4.12, 27.96)),
+                       ((-10.56, 20.15), (-4.12, 20.15)), ((-10.56, 13.98), (-4.12, 13.98)),
+                       ((-2.49, 33.82), (5.23, 33.82)), ((-2.49, 27.96), (5.23, 27.96)),
+                       ((-2.49, 20.15), (5.23, 20.15)), ((-2.49, 13.98), (5.23, 13.98))],
+            "Austral": [((-5.14, -9.61), (0.82, -9.61)), ((-5.14, -16.89), (0.82, -16.89)),
+                        ((-5.14, -26.15), (0.82, -26.15)), ((-5.14, -32.98), (0.82, -32.98)),
+                        ((2.36, -13.8), (9.19, -13.8)), ((2.36, -17.99), (9.19, -17.99)),
+                        ((2.36, -27.69), (9.19, -27.69))],
+        },
         "contornos": [
             [(-10.0, 42.6), (5.0, 42.6), (5.0, 5.0), (-10.0, 5.0), (-10.0, 42.6)],
             [(-6.4, -0.3), (10.0, -0.3), (10.0, -42.6), (-6.4, -42.6), (-6.4, -0.3)],
@@ -724,6 +745,9 @@ def tamano_marcador(d):
     return 28
 
 
+# Colores de las áreas comunes (cajas translúcidas): índices de traza 6 en adelante
+COLOR_COMUN = {"Corredor": "#dde3f2", "Escaleras": "#f4f4fa", "Ascensores": "#e4eaff"}
+
 # Colores categóricos fijos por tipo (legibles sobre fondo negro); se reciclan si faltan
 COLORES_TIPO = [
     "#FD3216", "#00FE35", "#6A76FC", "#FED4C4", "#FE00CE", "#0DF9FF", "#F6F926",
@@ -784,6 +808,14 @@ fig = go.FigureWidget(
         # Contorno de planta real (solo edificios con plano en PLANTAS)
         go.Scatter3d(x=[], y=[], z=[], mode="lines", hoverinfo="skip",
                      line=dict(color="#3b4058", width=2)),
+        # Líneas finas: silueta de las torres y particiones entre deptos
+        go.Scatter3d(x=[], y=[], z=[], mode="lines", hoverinfo="skip",
+                     line=dict(color="#4b5170", width=1)),
+    ] + [
+        # Corredores, escaleras y ascensores: cajas blanquecinas translúcidas
+        go.Mesh3d(x=[], y=[], z=[], i=[], j=[], k=[], name=tipo, color=color, opacity=0.16,
+                  flatshading=True, hoverinfo="skip", lighting=dict(ambient=0.9, diffuse=0.2, specular=0))
+        for tipo, color in COLOR_COMUN.items()
     ],
     layout=go.Layout(
         template="plotly_dark",
@@ -977,17 +1009,48 @@ def dibujar_contorno():
                 lx += [x for x, _ in c] + [None]
                 ly += [y for _, y in c] + [None]
                 lz += [(int(n) - 1) * ALTURA_PISO] * len(c) + [None]
+    fx, fy, fz = [], [], []  # líneas finas
+    cajas = {tipo: dict(x=[], y=[], z=[], i=[], j=[], k=[]) for tipo in COLOR_COMUN}
+    if plano:
         # Silueta de cada torre (si hay elevaciones): aristas de suelo a cubierta
         if dd_piso.value == TODOS:
             for k, z0, z1 in plano.get("volumenes", []):
                 c = plano["contornos"][k]
                 for x, y in c[:-1]:
-                    lx += [x, x, None]; ly += [y, y, None]; lz += [z0, z1, None]
+                    fx += [x, x, None]; fy += [y, y, None]; fz += [z0, z1, None]
                 for zz in (z0, z1):
-                    lx += [x for x, _ in c] + [None]
-                    ly += [y for _, y in c] + [None]
-                    lz += [zz] * len(c) + [None]
+                    fx += [x for x, _ in c] + [None]
+                    fy += [y for _, y in c] + [None]
+                    fz += [zz] * len(c) + [None]
+        # Particiones entre deptos, en cada piso de su torre
+        for torre, segs in plano.get("particiones", {}).items():
+            pisos = sorted(deptos.loc[(deptos["Edificio"] == dd_edificio.value) & (deptos["Torre"] == torre),
+                                      "Piso_Num"].unique())
+            if dd_piso.value != TODOS:
+                pisos = [n for n in pisos if n == int(dd_piso.value)]
+            for n in pisos:
+                zz = (int(n) - 1) * ALTURA_PISO
+                for (x0, y0), (x1, y1) in segs:
+                    fx += [x0, x1, None]; fy += [y0, y1, None]; fz += [zz, zz, None]
+        # Corredores y núcleos: de suelo a cubierta, o solo el tramo del piso elegido
+        for tipo, (x0, y0, x1, y1), z0, z1 in plano.get("areas_comunes", []):
+            if dd_piso.value != TODOS:
+                n = int(dd_piso.value)
+                z0, z1 = max(z0, (n - 1) * ALTURA_PISO), min(z1, n * ALTURA_PISO)
+                if z1 <= z0:
+                    continue
+            m = cajas.setdefault(tipo, dict(x=[], y=[], z=[], i=[], j=[], k=[]))
+            b = len(m["x"])
+            for vx, vy, vz in [(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
+                               (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1)]:
+                m["x"].append(vx); m["y"].append(vy); m["z"].append(vz)
+            for a1, a2, a3 in [(0, 1, 2), (0, 2, 3), (4, 5, 6), (4, 6, 7), (0, 1, 5), (0, 5, 4),
+                               (1, 2, 6), (1, 6, 5), (2, 3, 7), (2, 7, 6), (3, 0, 4), (3, 4, 7)]:
+                m["i"].append(b + a1); m["j"].append(b + a2); m["k"].append(b + a3)
     fig.data[4].x, fig.data[4].y, fig.data[4].z = lx, ly, lz
+    fig.data[5].x, fig.data[5].y, fig.data[5].z = fx, fy, fz
+    for traza, tipo in zip(fig.data[6:], COLOR_COMUN):
+        traza.update(**cajas[tipo])
 
 
 def dibujar_molecula(ots_depto):

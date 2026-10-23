@@ -116,6 +116,27 @@ PLANTAS = {
         # de la cubierta. Boreal = Ed. Lo Ovalle (pisos 1–16, mirador +40,00, cubierta +43,15);
         # Austral = Ed. Jorge Cáceres (pisos 1–22, azotea +55,28). (índice de contorno, desde, hasta)
         "volumenes": [(0, 0.0, 43.15), (1, 0.2, 55.28)],
+        # Áreas comunes según la planta general A05: corredor central y núcleo (escaleras y
+        # ascensores) de cada torre, de suelo a cubierta. (tipo, (x0, y0, x1, y1), desde, hasta)
+        "areas_comunes": [
+            ("Corredor", (-4.12, 8.03, -2.49, 34.92), 0.0, 40.0),
+            ("Escaleras", (-10.21, 20.15, -6.68, 27.65), 0.0, 43.15),
+            ("Ascensores", (-6.68, 20.37, -4.26, 26.55), 0.0, 43.15),
+            ("Corredor", (0.82, -38.28, 2.36, -6.09), 0.2, 55.28),
+            ("Escaleras", (-5.14, -26.15, -2.05, -16.89), 0.2, 55.28),
+            ("Ascensores", (-2.05, -25.93, 0.82, -19.54), 0.2, 55.28),
+        ],
+        # Muros entre departamentos (planta A05), dibujados en cada piso de su torre
+        "particiones": {
+            "Boreal": [((-10.56, 33.82), (-4.12, 33.82)), ((-10.56, 27.96), (-4.12, 27.96)),
+                       ((-10.56, 20.15), (-4.12, 20.15)), ((-10.56, 13.98), (-4.12, 13.98)),
+                       ((-2.49, 33.82), (5.23, 33.82)), ((-2.49, 27.96), (5.23, 27.96)),
+                       ((-2.49, 20.15), (5.23, 20.15)), ((-2.49, 13.98), (5.23, 13.98))],
+            "Austral": [((-5.14, -9.61), (0.82, -9.61)), ((-5.14, -16.89), (0.82, -16.89)),
+                        ((-5.14, -26.15), (0.82, -26.15)), ((-5.14, -32.98), (0.82, -32.98)),
+                        ((2.36, -13.8), (9.19, -13.8)), ((2.36, -17.99), (9.19, -17.99)),
+                        ((2.36, -27.69), (9.19, -27.69))],
+        },
         "contornos": [
             [(-10.0, 42.6), (5.0, 42.6), (5.0, 5.0), (-10.0, 5.0), (-10.0, 42.6)],
             [(-6.4, -0.3), (10.0, -0.3), (10.0, -42.6), (-6.4, -42.6), (-6.4, -0.3)],
@@ -766,6 +787,18 @@ def construir_modelo(df):
                  for k, z0, z1 in p["volumenes"]]
             for ed, p in PLANTAS.items() if p.get("volumenes") and (deptos["Edificio"] == ed).any()
         },
+        # Corredores y núcleos (cajas de suelo a cubierta) y particiones entre deptos por piso
+        "comunes": {
+            ed: [{"tipo": t, "rect": list(r), "z0": z0, "z1": z1} for t, r, z0, z1 in p["areas_comunes"]]
+            for ed, p in PLANTAS.items() if p.get("areas_comunes") and (deptos["Edificio"] == ed).any()
+        },
+        "particiones": {
+            ed: [{"pisos": sorted(int(n) for n in deptos.loc[(deptos["Edificio"] == ed) & (deptos["Torre"] == t),
+                                                              "Piso_Num"].unique()),
+                  "segs": [[x0, y0, x1, y1] for (x0, y0), (x1, y1) in segs]}
+                 for t, segs in p["particiones"].items()]
+            for ed, p in PLANTAS.items() if p.get("particiones") and (deptos["Edificio"] == ed).any()
+        },
     }
 
 
@@ -985,6 +1018,33 @@ function trazasMolecula(i, porTipo) {
   ];
 }
 
+// Corredores, escaleras y ascensores como cajas blanquecinas translúcidas: de suelo a cubierta,
+// o solo el tramo del piso elegido. hoverinfo 'skip' para no tapar las burbujas al pasar el mouse.
+const COLOR_COMUN = { Corredor: '#dde3f2', Escaleras: '#f4f4fa', Ascensores: '#e4eaff' };
+function trazasComunes(comunes, piso) {
+  const porTipo = {};
+  comunes.forEach(a => {
+    let z0 = a.z0, z1 = a.z1;
+    if (piso !== TODOS) {
+      z0 = Math.max(a.z0, (+piso - 1) * M.alturaPiso); z1 = Math.min(a.z1, +piso * M.alturaPiso);
+      if (z1 <= z0) return;
+    }
+    const m = porTipo[a.tipo] || (porTipo[a.tipo] = { x: [], y: [], z: [], i: [], j: [], k: [] });
+    const [x0, y0, x1, y1] = a.rect, b = m.x.length;
+    [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0], [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]]
+      .forEach(([vx, vy, vz]) => { m.x.push(vx); m.y.push(vy); m.z.push(vz); });
+    [[0, 1, 2], [0, 2, 3], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5],
+     [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]].forEach(([a1, a2, a3]) => {
+      m.i.push(b + a1); m.j.push(b + a2); m.k.push(b + a3);
+    });
+  });
+  return Object.entries(porTipo).map(([tipo, m]) => Object.assign({
+    type: 'mesh3d', name: tipo, color: COLOR_COMUN[tipo] || '#e8ecf8', opacity: 0.16,
+    flatshading: true, hoverinfo: 'skip', showlegend: false,
+    lighting: { ambient: 0.9, diffuse: 0.2, specular: 0 },
+  }, m));
+}
+
 function mostrarLeyenda(i, porTipo) {
   const lg = $('leyenda');
   if (i < 0) { lg.hidden = true; lg.innerHTML = ''; return; }
@@ -1103,8 +1163,20 @@ function actualizar() {
       });
     });
     trazas.push({ type: 'scatter3d', mode: 'lines', x: vx, y: vy, z: vz, hoverinfo: 'skip',
-      showlegend: false, line: { color: '#5a6288', width: 3 } });
+      showlegend: false, line: { color: '#5a6288', width: 1 } });
   }
+  const particiones = M.particiones[e];
+  if (particiones) {  // muros entre deptos, en cada piso de su torre
+    const qx = [], qy = [], qz = [];
+    particiones.forEach(t => t.pisos.filter(n => p === TODOS || String(n) === p).forEach(n => {
+      const zz = (n - 1) * M.alturaPiso;
+      t.segs.forEach(([x0, y0, x1, y1]) => { qx.push(x0, x1, null); qy.push(y0, y1, null); qz.push(zz, zz, null); });
+    }));
+    trazas.push({ type: 'scatter3d', mode: 'lines', x: qx, y: qy, z: qz, hoverinfo: 'skip',
+      showlegend: false, line: { color: '#3b4058', width: 1 } });
+  }
+  const comunes = M.comunes[e];
+  if (comunes) trazas.push(...trazasComunes(comunes, p));
   bajoCursor = -1;  // los índices de punto cambian al redibujar
   // Redibujar la escena 3D le reaplica la última cámara guardada, que puede no incluir un zoom
   // con la rueda recién hecho: se toma la que se ve ahora y se vuelve a aplicar tras redibujar.
