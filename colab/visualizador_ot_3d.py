@@ -440,6 +440,123 @@ PLANTAS = {
             [(-13.4, 7.9), (30.3, 7.9), (30.3, -8.1), (-13.4, -8.1), (-13.4, 7.9)],  # pisos 23–25
             [(22.8, 17.8), (40.1, 17.8), (40.1, -17.8), (22.8, -17.8), (22.8, 17.8)],  # ala torre A
         ],
+        # Volúmenes según las elevaciones IRZ-AR-EL-01 a 03: cada contorno de la barra en su
+        # rango de pisos (el retiro escalonado del poniente) y el ala de la torre A (pisos 3–7);
+        # azotea a +62,50 con el volumen de sala de máquinas y terraza a ~+66
+        "volumenes": [(0, 0.0, 5.0), (1, 5.0, 17.5), (2, 17.5, 20.0), (3, 20.0, 22.5), (4, 22.5, 30.0), (5, 30.0, 32.5), (6, 32.5, 37.5), (7, 37.5, 40.0), (8, 40.0, 45.0), (9, 45.0, 47.5), (10, 47.5, 52.5), (11, 52.5, 55.0), (12, 55.0, 62.5), (13, 5.0, 17.5)],
+        # Pasillo central de la barra (en cada escalón), pasillo del ala, escalera presurizada,
+        # ascensores de cada torre (lámina PL-10) y el volumen sobre la azotea
+        "areas_comunes": [
+            ("Corredor", (-40.7, -0.74, 22.8, 0.74), 5.0, 17.5),
+            ("Corredor", (-40.7, -0.74, 30.11, 0.74), 17.5, 20.0),
+            ("Corredor", (-40.3, -0.74, 30.11, 0.74), 20.0, 22.5),
+            ("Corredor", (-35.3, -0.74, 30.11, 0.74), 22.5, 30.0),
+            ("Corredor", (-34.2, -0.74, 30.11, 0.74), 30.0, 32.5),
+            ("Corredor", (-30.1, -0.74, 30.11, 0.74), 32.5, 37.5),
+            ("Corredor", (-29.1, -0.74, 30.11, 0.74), 37.5, 40.0),
+            ("Corredor", (-24.9, -0.74, 30.11, 0.74), 40.0, 45.0),
+            ("Corredor", (-23.8, -0.74, 30.11, 0.74), 45.0, 47.5),
+            ("Corredor", (-19.6, -0.74, 30.11, 0.74), 47.5, 52.5),
+            ("Corredor", (-18.6, -0.74, 30.11, 0.74), 52.5, 55.0),
+            ("Corredor", (-13.4, -0.74, 30.11, 0.74), 55.0, 62.5),
+            ("Corredor", (30.14, -17.57, 31.77, 17.53), 5.0, 17.5),
+            ("Escaleras", (-0.19, 0.74, 6.83, 6.07), 0.0, 62.5),
+            ("Ascensores", (-7.99, -3.1, -3.05, -0.74), 0.0, 62.5),
+            ("Ascensores", (21.29, 0.74, 28.35, 3.14), 0.0, 62.5),
+            ("Sala de máquinas", (6.6, -5.5, 30.3, 5.5), 62.5, 66.0),
+        ],
+        # Terrazas en la cubierta de cada retiro escalonado y del ala (parapeto de 1 m)
+        "terrazas": {
+            "A": [
+                ((22.8, 17.8), (40.1, 17.8), (8, 8)), ((40.1, 17.8), (40.1, -17.8), (8, 8)),
+                ((40.1, -17.8), (22.8, -17.8), (8, 8)), ((22.8, -17.8), (22.8, -8.1), (8, 8)),
+                ((22.8, 7.9), (22.8, 17.8), (8, 8)),
+            ],
+            "B": [
+                ((-40.3, 7.9), (-35.3, 7.9), (10, 10)),
+                ((-40.3, -8.1), (-35.3, -8.1), (10, 10)),
+                ((-40.3, 7.9), (-40.3, -8.1), (10, 10)),
+                ((-35.3, 7.9), (-34.2, 7.9), (13, 13)),
+                ((-35.3, -8.1), (-34.2, -8.1), (13, 13)),
+                ((-35.3, 7.9), (-35.3, -8.1), (13, 13)),
+                ((-34.2, 7.9), (-30.1, 7.9), (14, 14)),
+                ((-34.2, -8.1), (-30.1, -8.1), (14, 14)),
+                ((-34.2, 7.9), (-34.2, -8.1), (14, 14)),
+                ((-30.1, 7.9), (-29.1, 7.9), (16, 16)),
+                ((-30.1, -8.1), (-29.1, -8.1), (16, 16)),
+                ((-30.1, 7.9), (-30.1, -8.1), (16, 16)),
+                ((-29.1, 7.9), (-24.9, 7.9), (17, 17)),
+                ((-29.1, -8.1), (-24.9, -8.1), (17, 17)),
+                ((-29.1, 7.9), (-29.1, -8.1), (17, 17)),
+                ((-24.9, 7.9), (-23.8, 7.9), (19, 19)),
+                ((-24.9, -8.1), (-23.8, -8.1), (19, 19)),
+                ((-24.9, 7.9), (-24.9, -8.1), (19, 19)),
+                ((-23.8, 7.9), (-19.6, 7.9), (20, 20)),
+                ((-23.8, -8.1), (-19.6, -8.1), (20, 20)),
+                ((-23.8, 7.9), (-23.8, -8.1), (20, 20)),
+                ((-19.6, 7.9), (-18.6, 7.9), (22, 22)),
+                ((-19.6, -8.1), (-18.6, -8.1), (22, 22)),
+                ((-19.6, 7.9), (-19.6, -8.1), (22, 22)),
+                ((-18.6, 7.9), (-13.4, 7.9), (23, 23)),
+                ((-18.6, -8.1), (-13.4, -8.1), (23, 23)),
+                ((-18.6, 7.9), (-18.6, -8.1), (23, 23)),
+            ],
+        },
+        # Muros entre deptos (PL-10 y, para el ala, PL-08); los del poniente solo hasta el
+        # último piso al que llega la barra en ese punto, y los del ala solo en los pisos 3–7
+        "particiones": {
+            "A": [
+                ((-0.19, 7.9), (-0.19, 0.74), (3, 25)),
+                ((6.83, 7.9), (6.83, 0.74), (3, 25)),
+                ((10.32, 7.9), (10.32, 0.74), (3, 25)),
+                ((15.54, 7.9), (15.54, 0.74), (3, 25)),
+                ((2.8, -0.74), (2.8, -8.1), (3, 25)),
+                ((10.74, -0.74), (10.74, -8.1), (3, 25)),
+                ((15.93, -0.74), (15.93, -8.1), (3, 25)),
+                ((22.0, 7.9), (22.0, 3.14), (8, 25)),
+                ((23.87, -0.74), (23.87, -8.1), (8, 25)),
+                ((31.77, 12.49), (40.1, 12.49), (3, 7)),
+                ((31.77, 7.48), (40.1, 7.48), (3, 7)),
+                ((31.77, 2.5), (40.1, 2.5), (3, 7)),
+                ((31.77, -2.5), (40.1, -2.5), (3, 7)),
+                ((31.77, -7.51), (40.1, -7.51), (3, 7)),
+                ((31.77, -12.49), (40.1, -12.49), (3, 7)),
+                ((22.8, 12.63), (30.14, 12.63), (3, 7)),
+                ((22.8, -12.59), (30.14, -12.59), (3, 7)),
+            ],
+            "B": [
+                ((-34.6, 7.9), (-34.6, 0.74), (3, 9)), ((-34.6, -0.74), (-34.6, -8.1), (3, 9)),
+                ((-28.91, 7.9), (-28.91, 0.74), (3, 15)),
+                ((-23.72, 7.9), (-23.72, 0.74), (3, 18)),
+                ((-18.54, 7.9), (-18.54, 0.74), (3, 21)),
+                ((-13.32, 7.9), (-13.32, 0.74), (3, 22)),
+                ((-8.13, 7.9), (-8.13, 0.74), (3, 25)),
+                ((-28.91, -0.74), (-28.91, -8.1), (3, 15)),
+                ((-23.72, -0.74), (-23.72, -8.1), (3, 18)),
+                ((-18.54, -0.74), (-18.54, -8.1), (3, 21)),
+                ((-13.32, -0.74), (-13.32, -8.1), (3, 22)),
+                ((-1.85, -0.74), (-1.85, -8.1), (3, 25)),
+            ],
+        },
+        # Fachada: vidrio entre losas en cada volumen; las caras compartidas entre la barra y el
+        # ala (x = 22,8 en los pisos 3–7) no llevan vidrio, y solo la cubierta final lleva
+        # parapeto propio (los escalones y el ala usan las terrazas de arriba)
+        "fachada": {
+            "V0": {"contorno": 0, "parapeto": False},
+            "V1": {"contorno": 1, "parapeto": False, "interiores": [((22.8, 7.9), (22.8, -8.1))]},
+            "V2": {"contorno": 2, "parapeto": False},
+            "V3": {"contorno": 3, "parapeto": False},
+            "V4": {"contorno": 4, "parapeto": False},
+            "V5": {"contorno": 5, "parapeto": False},
+            "V6": {"contorno": 6, "parapeto": False},
+            "V7": {"contorno": 7, "parapeto": False},
+            "V8": {"contorno": 8, "parapeto": False},
+            "V9": {"contorno": 9, "parapeto": False},
+            "V10": {"contorno": 10, "parapeto": False},
+            "V11": {"contorno": 11, "parapeto": False},
+            "V12": {"contorno": 12, "parapeto": True},
+            "Ala": {"contorno": 13, "parapeto": False, "interiores": [((22.8, 7.9), (22.8, -7.9))]},
+        },
     },
     # Somma Vista Calan, láminas 2101-A-105 a A-109 (escala 1:75): una barra con pasillo
     # central dividida al medio en "Edificio S" (poniente) y "Edificio N" (oriente), en
@@ -744,7 +861,9 @@ def asignar_coordenadas(grupo):
 def paños_fachada(plano):
     """Paños de fachada de cada torre con elevaciones, como (x0, y0, x1, y1, z0, z1, piso):
     bordes de losa (25 cm) y vidrio entre ellos en todo el perímetro, salvo los muros ciegos
-    (de piso a piso), más el borde de la cubierta y su parapeto (1 m, piso None)."""
+    (de piso a piso), más el borde de la cubierta y su parapeto (1 m, piso None). Los tramos
+    "interiores" (caras compartidas con otro volumen) no llevan vidrio, y "parapeto": False omite
+    el parapeto de una cubierta que queda bajo otro volumen."""
     paños = {"losas": [], "vidrios": [], "ciegos": [], "parapetos": []}
     for f in plano.get("fachada", {}).values():
         k = f["contorno"]
@@ -757,7 +876,7 @@ def paños_fachada(plano):
             largo = math.hypot(bx - ax, by - ay)
             ux, uy = (bx - ax) / largo, (by - ay) / largo
             cortes = []
-            for extremos in f.get("ciegos", []):
+            for extremos in f.get("ciegos", []) + f.get("interiores", []):
                 if all(abs((px - ax) * uy - (py - ay) * ux) < 0.05 for px, py in extremos):
                     t0, t1 = sorted((px - ax) * ux + (py - ay) * uy for px, py in extremos)
                     cortes.append((max(t0, 0), min(t1, largo)))
@@ -778,7 +897,8 @@ def paños_fachada(plano):
                 paños["ciegos"].append((x0, y0, x1, y1, za, zb, n))
         for (x0, y0), (x1, y1) in aristas:
             paños["losas"].append((x0, y0, x1, y1, z1 - 0.25, z1, None))
-            paños["parapetos"].append((x0, y0, x1, y1, z1, z1 + 1, None))
+            if f.get("parapeto", True):
+                paños["parapetos"].append((x0, y0, x1, y1, z1, z1 + 1, None))
     return paños
 
 
