@@ -1072,7 +1072,7 @@ function trazasComunes(comunes, piso) {
     });
   });
   return Object.entries(porTipo).map(([tipo, m]) => Object.assign({
-    type: 'mesh3d', name: tipo, color: COLOR_COMUN[tipo] || '#e8ecf8', opacity: 0.16,
+    type: 'mesh3d', name: tipo, color: COLOR_COMUN[tipo] || '#e8ecf8', opacity: 0.45,
     flatshading: true, hoverinfo: 'skip', showlegend: false,
     lighting: { ambient: 0.9, diffuse: 0.2, specular: 0 },
   }, m));

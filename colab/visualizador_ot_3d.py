@@ -830,7 +830,7 @@ fig = go.FigureWidget(
                      line=dict(color="#4b5170", width=1)),
     ] + [
         # Corredores, escaleras y ascensores: cajas blanquecinas translúcidas
-        go.Mesh3d(x=[], y=[], z=[], i=[], j=[], k=[], name=tipo, color=color, opacity=0.16,
+        go.Mesh3d(x=[], y=[], z=[], i=[], j=[], k=[], name=tipo, color=color, opacity=0.45,
                   flatshading=True, hoverinfo="skip", lighting=dict(ambient=0.9, diffuse=0.2, specular=0))
         for tipo, color in COLOR_COMUN.items()
     ] + [
