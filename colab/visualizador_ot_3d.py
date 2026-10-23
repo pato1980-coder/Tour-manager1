@@ -133,7 +133,17 @@ PLANTAS = {
             ("Corredor", (0.82, -38.28, 2.36, -6.09), 0.2, 55.28),
             ("Escaleras", (-5.14, -26.15, -2.05, -16.89), 0.2, 55.28),
             ("Ascensores", (-2.05, -25.93, 0.82, -19.54), 0.2, 55.28),
+            # Salas de máquinas sobre el núcleo (cajas oscuras sobre la cubierta en A16 y A17)
+            ("Sala de máquinas", (-10.21, 20.15, -4.26, 27.65), 43.15, 46.15),
+            ("Sala de máquinas", (-5.14, -26.15, 0.82, -16.89), 55.28, 58.78),
         ],
+        # Fachada (elevaciones A16 a A20): por torre, el contorno que la forma y los muros ciegos
+        # del núcleo de escaleras (la franja oscura de suelo a cubierta en la fachada poniente).
+        # El resto del perímetro se dibuja como vidrio entre bordes de losa, con parapeto en la cubierta.
+        "fachada": {
+            "Boreal": {"contorno": 0, "ciegos": [((-10.56, 20.15), (-10.56, 27.65))]},
+            "Austral": {"contorno": 1, "ciegos": [((-5.14, -26.15), (-5.14, -16.89))]},
+        },
         # Antepechos de terrazas (planta A05): paños de 1 m de alto en la línea de fachada,
         # centrados en cada rótulo "TERRAZA" y de ~3 m de largo, en cada piso de su torre
         "terrazas": {
@@ -683,6 +693,46 @@ def asignar_coordenadas(grupo):
     return grupo
 
 
+def paños_fachada(plano):
+    """Paños de fachada de cada torre con elevaciones, como (x0, y0, x1, y1, z0, z1, piso):
+    bordes de losa (25 cm) y vidrio entre ellos en todo el perímetro, salvo los muros ciegos
+    (de piso a piso), más el borde de la cubierta y su parapeto (1 m, piso None)."""
+    paños = {"losas": [], "vidrios": [], "ciegos": [], "parapetos": []}
+    for f in plano.get("fachada", {}).values():
+        k = f["contorno"]
+        z1 = next(v[2] for v in plano["volumenes"] if v[0] == k)
+        c = plano["contornos"][k]
+        aristas = [(c[i], c[i + 1]) for i in range(len(c) - 1)]
+        # tramos de vidrio: cada arista sin los muros ciegos que caen sobre ella
+        vidrios = []
+        for (ax, ay), (bx, by) in aristas:
+            largo = math.hypot(bx - ax, by - ay)
+            ux, uy = (bx - ax) / largo, (by - ay) / largo
+            cortes = []
+            for extremos in f.get("ciegos", []):
+                if all(abs((px - ax) * uy - (py - ay) * ux) < 0.05 for px, py in extremos):
+                    t0, t1 = sorted((px - ax) * ux + (py - ay) * uy for px, py in extremos)
+                    cortes.append((max(t0, 0), min(t1, largo)))
+            t = 0
+            for t0, t1 in sorted(cortes) + [(largo, largo)]:
+                if t0 - t > 0.05:
+                    vidrios.append(((ax + ux * t, ay + uy * t), (ax + ux * t0, ay + uy * t0)))
+                t = max(t, t1)
+        niveles = [n * ALTURA_PISO for n in range(int(z1 / ALTURA_PISO) + 1) if n * ALTURA_PISO < z1 - 0.5] + [z1]
+        for za, zb in zip(niveles, niveles[1:]):
+            n = round(za / ALTURA_PISO) + 1
+            for (x0, y0), (x1, y1) in aristas:
+                paños["losas"].append((x0, y0, x1, y1, za, za + 0.25, n))
+            for (x0, y0), (x1, y1) in vidrios:
+                paños["vidrios"].append((x0, y0, x1, y1, za + 0.25, zb, n))
+            for (x0, y0), (x1, y1) in f.get("ciegos", []):
+                paños["ciegos"].append((x0, y0, x1, y1, za, zb, n))
+        for (x0, y0), (x1, y1) in aristas:
+            paños["losas"].append((x0, y0, x1, y1, z1 - 0.25, z1, None))
+            paños["parapetos"].append((x0, y0, x1, y1, z1, z1 + 1, None))
+    return paños
+
+
 def agregar_deptos_sin_ot(deptos):
     """Agrega con 0 OT los deptos que el plano tiene en cada piso pero que no registran OT,
     para que la maqueta muestre el edificio completo (la burbuja más chica = 0 OT). Cada
@@ -735,7 +785,8 @@ LIM_XY = max([float(deptos["X"].abs().max()), float(deptos["Y"].abs().max())]
 RANGO_X = [-LIM_XY, LIM_XY]
 RANGO_Y = [-LIM_XY, LIM_XY]
 _techo = max([float(deptos["Z"].max())] + [v[2] for ed, p in PLANTAS.items()
-                                           if (deptos["Edificio"] == ed).any() for v in p.get("volumenes", [])])
+                                           if (deptos["Edificio"] == ed).any() for v in p.get("volumenes", [])]
+             + [a[3] for ed, p in PLANTAS.items() if (deptos["Edificio"] == ed).any() for a in p.get("areas_comunes", [])])
 RANGO_Z = [-ALTURA_PISO / 2, _techo + ALTURA_PISO]
 DENSIDAD_MAX = int(deptos["Densidad_Total"].max())
 # rótulos del eje vertical: el primer piso y luego cada 5
@@ -763,7 +814,14 @@ def tamano_marcador(d):
 
 
 # Colores de las áreas comunes (cajas translúcidas): índices de traza 6 en adelante
-COLOR_COMUN = {"Corredor": "#262b38", "Escaleras": "#2e3342", "Ascensores": "#222838"}
+COLOR_COMUN = {"Corredor": "#262b38", "Escaleras": "#2e3342", "Ascensores": "#222838",
+               "Sala de máquinas": "#1c2030"}
+# Fachada translúcida (torres con elevaciones): color y opacidad de cada tipo de paño
+ESTILO_FACHADA = {"losas": ("#5d6684", 0.55), "vidrios": ("#4f6fa8", 0.10),
+                  "ciegos": ("#262b38", 0.60), "parapetos": ("#3d4456", 0.55)}
+I_COMUN = 6                              # primer índice de traza de las áreas comunes
+I_MUROS = I_COMUN + len(COLOR_COMUN)     # muros entre deptos; el siguiente, antepechos
+I_FACHADA = I_MUROS + 2                  # paños de fachada, en el orden de ESTILO_FACHADA
 
 # Colores categóricos fijos por tipo (legibles sobre fondo negro); se reciclan si faltan
 COLORES_TIPO = [
@@ -834,10 +892,12 @@ fig = go.FigureWidget(
                   flatshading=True, hoverinfo="skip", lighting=dict(ambient=0.6, diffuse=0.2, specular=0, roughness=1, fresnel=0))
         for tipo, color in COLOR_COMUN.items()
     ] + [
-        # Muros entre deptos (piso a cielo) y antepechos de terrazas (1 m): índices 9 y 10
+        # Muros entre deptos (piso a cielo) y antepechos de terrazas (1 m): índices I_MUROS y siguiente,
+        # y luego los paños de fachada (I_FACHADA en adelante)
         go.Mesh3d(x=[], y=[], z=[], i=[], j=[], k=[], name=nombre, color=color, opacity=opacidad,
                   flatshading=True, hoverinfo="skip", lighting=dict(ambient=0.6, diffuse=0.2, specular=0, roughness=1, fresnel=0))
         for nombre, color, opacidad in [("Muros", "#8f98b8", 0.30), ("Antepechos", "#3d4456", 0.55)]
+        + [(nombre, color, opacidad) for nombre, (color, opacidad) in ESTILO_FACHADA.items()]
     ],
     layout=go.Layout(
         template="plotly_dark",
@@ -1034,7 +1094,13 @@ def dibujar_contorno():
     fx, fy, fz = [], [], []  # líneas finas
     muros, antepechos = (dict(x=[], y=[], z=[], i=[], j=[], k=[]) for _ in range(2))
     cajas = {tipo: dict(x=[], y=[], z=[], i=[], j=[], k=[]) for tipo in COLOR_COMUN}
+    fachada = {clave: dict(x=[], y=[], z=[], i=[], j=[], k=[]) for clave in ESTILO_FACHADA}
     if plano:
+        # Fachada: bordes de losa, vidrio, muros ciegos del núcleo y parapeto de cubierta
+        for clave, paños in paños_fachada(plano).items():
+            for x0, y0, x1, y1, z0, z1, n in paños:
+                if dd_piso.value == TODOS or (n is not None and n == int(dd_piso.value)):
+                    agregar_paño(fachada[clave], x0, y0, x1, y1, z0, z1)
         # Silueta de cada torre (si hay elevaciones): aristas de suelo a cubierta
         if dd_piso.value == TODOS:
             for k, z0, z1 in plano.get("volumenes", []):
@@ -1078,10 +1144,12 @@ def dibujar_contorno():
                 m["i"].append(b + a1); m["j"].append(b + a2); m["k"].append(b + a3)
     fig.data[4].x, fig.data[4].y, fig.data[4].z = lx, ly, lz
     fig.data[5].x, fig.data[5].y, fig.data[5].z = fx, fy, fz
-    for traza, tipo in zip(fig.data[6:9], COLOR_COMUN):
+    for traza, tipo in zip(fig.data[I_COMUN:I_MUROS], COLOR_COMUN):
         traza.update(**cajas[tipo])
-    fig.data[9].update(**muros)
-    fig.data[10].update(**antepechos)
+    fig.data[I_MUROS].update(**muros)
+    fig.data[I_MUROS + 1].update(**antepechos)
+    for traza, clave in zip(fig.data[I_FACHADA:], ESTILO_FACHADA):
+        traza.update(**fachada[clave])
 
 
 def agregar_paño(m, x0, y0, x1, y1, z0, z1):

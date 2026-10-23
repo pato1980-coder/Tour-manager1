@@ -126,7 +126,17 @@ PLANTAS = {
             ("Corredor", (0.82, -38.28, 2.36, -6.09), 0.2, 55.28),
             ("Escaleras", (-5.14, -26.15, -2.05, -16.89), 0.2, 55.28),
             ("Ascensores", (-2.05, -25.93, 0.82, -19.54), 0.2, 55.28),
+            # Salas de máquinas sobre el núcleo (cajas oscuras sobre la cubierta en A16 y A17)
+            ("Sala de máquinas", (-10.21, 20.15, -4.26, 27.65), 43.15, 46.15),
+            ("Sala de máquinas", (-5.14, -26.15, 0.82, -16.89), 55.28, 58.78),
         ],
+        # Fachada (elevaciones A16 a A20): por torre, el contorno que la forma y los muros ciegos
+        # del núcleo de escaleras (la franja oscura de suelo a cubierta en la fachada poniente).
+        # El resto del perímetro se dibuja como vidrio entre bordes de losa, con parapeto en la cubierta.
+        "fachada": {
+            "Boreal": {"contorno": 0, "ciegos": [((-10.56, 20.15), (-10.56, 27.65))]},
+            "Austral": {"contorno": 1, "ciegos": [((-5.14, -26.15), (-5.14, -16.89))]},
+        },
         # Antepechos de terrazas (planta A05): paños de 1 m de alto en la línea de fachada,
         # centrados en cada rótulo "TERRAZA" y de ~3 m de largo, en cada piso de su torre
         "terrazas": {
@@ -675,6 +685,46 @@ def asignar_coordenadas(grupo):
     return grupo
 
 
+def paños_fachada(plano):
+    """Paños de fachada de cada torre con elevaciones, como (x0, y0, x1, y1, z0, z1, piso):
+    bordes de losa (25 cm) y vidrio entre ellos en todo el perímetro, salvo los muros ciegos
+    (de piso a piso), más el borde de la cubierta y su parapeto (1 m, piso None)."""
+    paños = {"losas": [], "vidrios": [], "ciegos": [], "parapetos": []}
+    for f in plano.get("fachada", {}).values():
+        k = f["contorno"]
+        z1 = next(v[2] for v in plano["volumenes"] if v[0] == k)
+        c = plano["contornos"][k]
+        aristas = [(c[i], c[i + 1]) for i in range(len(c) - 1)]
+        # tramos de vidrio: cada arista sin los muros ciegos que caen sobre ella
+        vidrios = []
+        for (ax, ay), (bx, by) in aristas:
+            largo = math.hypot(bx - ax, by - ay)
+            ux, uy = (bx - ax) / largo, (by - ay) / largo
+            cortes = []
+            for extremos in f.get("ciegos", []):
+                if all(abs((px - ax) * uy - (py - ay) * ux) < 0.05 for px, py in extremos):
+                    t0, t1 = sorted((px - ax) * ux + (py - ay) * uy for px, py in extremos)
+                    cortes.append((max(t0, 0), min(t1, largo)))
+            t = 0
+            for t0, t1 in sorted(cortes) + [(largo, largo)]:
+                if t0 - t > 0.05:
+                    vidrios.append(((ax + ux * t, ay + uy * t), (ax + ux * t0, ay + uy * t0)))
+                t = max(t, t1)
+        niveles = [n * ALTURA_PISO for n in range(int(z1 / ALTURA_PISO) + 1) if n * ALTURA_PISO < z1 - 0.5] + [z1]
+        for za, zb in zip(niveles, niveles[1:]):
+            n = round(za / ALTURA_PISO) + 1
+            for (x0, y0), (x1, y1) in aristas:
+                paños["losas"].append((x0, y0, x1, y1, za, za + 0.25, n))
+            for (x0, y0), (x1, y1) in vidrios:
+                paños["vidrios"].append((x0, y0, x1, y1, za + 0.25, zb, n))
+            for (x0, y0), (x1, y1) in f.get("ciegos", []):
+                paños["ciegos"].append((x0, y0, x1, y1, za, zb, n))
+        for (x0, y0), (x1, y1) in aristas:
+            paños["losas"].append((x0, y0, x1, y1, z1 - 0.25, z1, None))
+            paños["parapetos"].append((x0, y0, x1, y1, z1, z1 + 1, None))
+    return paños
+
+
 def pisos_contorno(deptos, edificio, plano, k):
     """Pisos donde dibujar el contorno k: los de su torre y rango de pisos, si el plano los indica."""
     sel = deptos["Edificio"] == edificio
@@ -737,7 +787,8 @@ def construir_modelo(df):
     lim_xy = max([float(deptos["X"].abs().max()), float(deptos["Y"].abs().max())]
                  + [max(abs(x), abs(y)) for x, y in contornos]) + MARGEN_EJES
     techo = max([float(deptos["Z"].max())] + [v[2] for ed, p in PLANTAS.items()
-                                              if (deptos["Edificio"] == ed).any() for v in p.get("volumenes", [])])
+                                              if (deptos["Edificio"] == ed).any() for v in p.get("volumenes", [])]
+                + [a[3] for ed, p in PLANTAS.items() if (deptos["Edificio"] == ed).any() for a in p.get("areas_comunes", [])])
     rango_z = [-ALTURA_PISO / 2, techo + ALTURA_PISO]
     span_z = rango_z[1] - rango_z[0]
     # rótulos del eje vertical: el primer piso y luego cada 5
@@ -816,6 +867,11 @@ def construir_modelo(df):
                   "terrazas": [[x0, y0, x1, y1] for (x0, y0), (x1, y1) in p.get("terrazas", {}).get(t, [])]}
                  for t, segs in p["particiones"].items()]
             for ed, p in PLANTAS.items() if p.get("particiones") and (deptos["Edificio"] == ed).any()
+        },
+        # Fachada de las torres con elevaciones: losas, vidrios, muros ciegos y parapetos
+        "fachadas": {
+            ed: paños_fachada(p)
+            for ed, p in PLANTAS.items() if p.get("fachada") and (deptos["Edificio"] == ed).any()
         },
     }
 
@@ -1053,7 +1109,7 @@ function paños() {
 
 // Corredores, escaleras y ascensores como cajas blanquecinas translúcidas: de suelo a cubierta,
 // o solo el tramo del piso elegido. hoverinfo 'skip' para no tapar las burbujas al pasar el mouse.
-const COLOR_COMUN = { Corredor: '#262b38', Escaleras: '#2e3342', Ascensores: '#222838' };
+const COLOR_COMUN = { Corredor: '#262b38', Escaleras: '#2e3342', Ascensores: '#222838', 'Sala de máquinas': '#1c2030' };
 function trazasComunes(comunes, piso) {
   const porTipo = {};
   comunes.forEach(a => {
@@ -1214,6 +1270,17 @@ function actualizar() {
     trazas.push({ type: 'scatter3d', mode: 'lines', x: qx, y: qy, z: qz, hoverinfo: 'skip',
       showlegend: false, line: { color: '#3b4058', width: 1 } });
     trazas.push(muros.traza('#8f98b8', 0.30), antepechos.traza('#3d4456', 0.55));
+  }
+  const fachada = M.fachadas[e];
+  if (fachada) {  // maqueta translúcida: bordes de losa, vidrio, muros ciegos del núcleo y parapeto
+    const estilo = { losas: ['#5d6684', 0.55], vidrios: ['#4f6fa8', 0.10], ciegos: ['#262b38', 0.60],
+                     parapetos: ['#3d4456', 0.55] };
+    Object.entries(estilo).forEach(([clave, [color, opacidad]]) => {
+      const m = paños();
+      fachada[clave].filter(f => p === TODOS ? true : String(f[6]) === p)
+        .forEach(([x0, y0, x1, y1, z0, z1]) => m.agregar(x0, y0, x1, y1, z0, z1));
+      trazas.push(m.traza(color, opacidad));
+    });
   }
   const comunes = M.comunes[e];
   if (comunes) trazas.push(...trazasComunes(comunes, p));
