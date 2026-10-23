@@ -1053,7 +1053,7 @@ function paños() {
 
 // Corredores, escaleras y ascensores como cajas blanquecinas translúcidas: de suelo a cubierta,
 // o solo el tramo del piso elegido. hoverinfo 'skip' para no tapar las burbujas al pasar el mouse.
-const COLOR_COMUN = { Corredor: '#6b7388', Escaleras: '#7a7f92', Ascensores: '#5d6680' };
+const COLOR_COMUN = { Corredor: '#3e4556', Escaleras: '#4a4f60', Ascensores: '#363d52' };
 function trazasComunes(comunes, piso) {
   const porTipo = {};
   comunes.forEach(a => {

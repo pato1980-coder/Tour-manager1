@@ -763,7 +763,7 @@ def tamano_marcador(d):
 
 
 # Colores de las áreas comunes (cajas translúcidas): índices de traza 6 en adelante
-COLOR_COMUN = {"Corredor": "#6b7388", "Escaleras": "#7a7f92", "Ascensores": "#5d6680"}
+COLOR_COMUN = {"Corredor": "#3e4556", "Escaleras": "#4a4f60", "Ascensores": "#363d52"}
 
 # Colores categóricos fijos por tipo (legibles sobre fondo negro); se reciclan si faltan
 COLORES_TIPO = [
