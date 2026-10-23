@@ -112,6 +112,10 @@ PLANTAS = {
         },
         # Contorno de cada torre (muros exteriores), solo en los pisos de esa torre
         "torres_contorno": ["Boreal", "Austral"],
+        # Silueta de cada torre según elevaciones y cortes (láminas A16 a A20): niveles N.P.T.
+        # de la cubierta. Boreal = Ed. Lo Ovalle (pisos 1–16, mirador +40,00, cubierta +43,15);
+        # Austral = Ed. Jorge Cáceres (pisos 1–22, azotea +55,28). (índice de contorno, desde, hasta)
+        "volumenes": [(0, 0.0, 43.15), (1, 0.2, 55.28)],
         "contornos": [
             [(-10.0, 42.6), (5.0, 42.6), (5.0, 5.0), (-10.0, 5.0), (-10.0, 42.6)],
             [(-6.4, -0.3), (10.0, -0.3), (10.0, -42.6), (-6.4, -42.6), (-6.4, -0.3)],
@@ -686,7 +690,7 @@ def construir_modelo(df):
         [asignar_coordenadas(g) for _, g in deptos.groupby(["Edificio", "Piso_Num"])],
         ignore_index=True,
     )
-    deptos["Z"] = deptos["Piso_Num"] * ALTURA_PISO  # altura real del piso (m)
+    deptos["Z"] = (deptos["Piso_Num"] - 1) * ALTURA_PISO  # piso 1 a nivel de suelo (m), como en los cortes
 
     # Escala fija absoluta (calculada ANTES de cualquier filtro), en metros e incluyendo los
     # contornos de planta; la misma escala en planta y altura (proporciones reales)
@@ -694,7 +698,9 @@ def construir_modelo(df):
                  for c in p["contornos"] for pt in c]
     lim_xy = max([float(deptos["X"].abs().max()), float(deptos["Y"].abs().max())]
                  + [max(abs(x), abs(y)) for x, y in contornos]) + MARGEN_EJES
-    rango_z = [float(deptos["Z"].min()) - ALTURA_PISO, float(deptos["Z"].max()) + ALTURA_PISO]
+    techo = max([float(deptos["Z"].max())] + [v[2] for ed, p in PLANTAS.items()
+                                              if (deptos["Edificio"] == ed).any() for v in p.get("volumenes", [])])
+    rango_z = [-ALTURA_PISO / 2, techo + ALTURA_PISO]
     span_z = rango_z[1] - rango_z[0]
     # rótulos del eje vertical: el primer piso y luego cada 5
     pisos = [n for n in range(int(deptos["Piso_Num"].min()), int(deptos["Piso_Num"].max()) + 1)
@@ -753,6 +759,12 @@ def construir_modelo(df):
                 for k, c in enumerate(p["contornos"])
             ]
             for ed, p in PLANTAS.items() if (deptos["Edificio"] == ed).any()
+        },
+        # Silueta de las torres con elevaciones: contorno de planta de suelo a cubierta
+        "volumenes": {
+            ed: [{"puntos": [[x, y] for x, y in p["contornos"][k]], "z0": z0, "z1": z1}
+                 for k, z0, z1 in p["volumenes"]]
+            for ed, p in PLANTAS.items() if p.get("volumenes") and (deptos["Edificio"] == ed).any()
         },
     }
 
@@ -922,7 +934,7 @@ const layout = {
     xaxis: eje('X (m)', M.rangoX), yaxis: eje('Y (m)', M.rangoY),
     // altura real (2,5 m por piso) rotulada con el número de piso
     zaxis: eje(`Piso (${String(M.alturaPiso).replace('.', ',')} m c/u)`, M.rangoZ,
-      { tickvals: M.pisos.map(n => n * M.alturaPiso), ticktext: M.pisos.map(String) }),
+      { tickvals: M.pisos.map(n => (n - 1) * M.alturaPiso), ticktext: M.pisos.map(String) }),
     aspectmode: 'manual', aspectratio: M.aspecto,
     camera: { eye: { x: 0.95, y: 0.95, z: 0.6 } }, bgcolor: '#000'
   }
@@ -1072,12 +1084,26 @@ function actualizar() {
     const lx = [], ly = [], lz = [];
     planta.forEach(c => {
       c.pisos.filter(z => p === TODOS || String(z) === p).forEach(z => {
-        c.puntos.forEach(([px, py]) => { lx.push(px); ly.push(py); lz.push(z * M.alturaPiso); });
+        c.puntos.forEach(([px, py]) => { lx.push(px); ly.push(py); lz.push((z - 1) * M.alturaPiso); });
         lx.push(null); ly.push(null); lz.push(null);
       });
     });
     trazas.push({ type: 'scatter3d', mode: 'lines', x: lx, y: ly, z: lz, hoverinfo: 'skip',
       showlegend: false, line: { color: '#3b4058', width: 2 } });
+  }
+  const volumenes = M.volumenes[e];
+  if (volumenes && p === TODOS) {  // silueta de cada torre: aristas de suelo a cubierta
+    const vx = [], vy = [], vz = [];
+    volumenes.forEach(v => {
+      const pts = v.puntos.slice(0, -1);  // sin el punto que cierra el polígono
+      pts.forEach(([px, py]) => { vx.push(px, px, null); vy.push(py, py, null); vz.push(v.z0, v.z1, null); });
+      [v.z0, v.z1].forEach(zz => {
+        v.puntos.forEach(([px, py]) => { vx.push(px); vy.push(py); vz.push(zz); });
+        vx.push(null); vy.push(null); vz.push(null);
+      });
+    });
+    trazas.push({ type: 'scatter3d', mode: 'lines', x: vx, y: vy, z: vz, hoverinfo: 'skip',
+      showlegend: false, line: { color: '#5a6288', width: 3 } });
   }
   bajoCursor = -1;  // los índices de punto cambian al redibujar
   // Redibujar la escena 3D le reaplica la última cámara guardada, que puede no incluir un zoom

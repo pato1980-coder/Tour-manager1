@@ -119,6 +119,10 @@ PLANTAS = {
         },
         # Contorno de cada torre (muros exteriores), solo en los pisos de esa torre
         "torres_contorno": ["Boreal", "Austral"],
+        # Silueta de cada torre según elevaciones y cortes (láminas A16 a A20): niveles N.P.T.
+        # de la cubierta. Boreal = Ed. Lo Ovalle (pisos 1–16, mirador +40,00, cubierta +43,15);
+        # Austral = Ed. Jorge Cáceres (pisos 1–22, azotea +55,28). (índice de contorno, desde, hasta)
+        "volumenes": [(0, 0.0, 43.15), (1, 0.2, 55.28)],
         "contornos": [
             [(-10.0, 42.6), (5.0, 42.6), (5.0, 5.0), (-10.0, 5.0), (-10.0, 42.6)],
             [(-6.4, -0.3), (10.0, -0.3), (10.0, -42.6), (-6.4, -42.6), (-6.4, -0.3)],
@@ -678,7 +682,7 @@ deptos = pd.concat(
     [asignar_coordenadas(g) for _, g in deptos.groupby(["Edificio", "Piso_Num"])],
     ignore_index=True,
 )
-deptos["Z"] = deptos["Piso_Num"] * ALTURA_PISO  # altura real del piso (m)
+deptos["Z"] = (deptos["Piso_Num"] - 1) * ALTURA_PISO  # piso 1 a nivel de suelo (m), como en los cortes
 df = df.merge(deptos[["Depto_ID", "X", "Y", "Z", "Grid_Size", "Densidad_Total"]],
               on="Depto_ID", how="left")
 
@@ -692,7 +696,9 @@ LIM_XY = max([float(deptos["X"].abs().max()), float(deptos["Y"].abs().max())]
              + [max(abs(x), abs(y)) for x, y in _contornos]) + MARGEN_EJES
 RANGO_X = [-LIM_XY, LIM_XY]
 RANGO_Y = [-LIM_XY, LIM_XY]
-RANGO_Z = [float(deptos["Z"].min()) - ALTURA_PISO, float(deptos["Z"].max()) + ALTURA_PISO]
+_techo = max([float(deptos["Z"].max())] + [v[2] for ed, p in PLANTAS.items()
+                                           if (deptos["Edificio"] == ed).any() for v in p.get("volumenes", [])])
+RANGO_Z = [-ALTURA_PISO / 2, _techo + ALTURA_PISO]
 DENSIDAD_MAX = int(deptos["Densidad_Total"].max())
 # rótulos del eje vertical: el primer piso y luego cada 5
 PISOS = [n for n in range(int(deptos["Piso_Num"].min()), int(deptos["Piso_Num"].max()) + 1)
@@ -791,7 +797,7 @@ fig = go.FigureWidget(
             yaxis=dict(range=RANGO_Y, title="Y (m)", **estilo_eje),
             # altura real (2,5 m por piso) rotulada con el número de piso
             zaxis=dict(range=RANGO_Z, title=f"Piso ({str(ALTURA_PISO).replace('.', ',')} m c/u)",
-                       tickvals=[n * ALTURA_PISO for n in PISOS], ticktext=[str(n) for n in PISOS],
+                       tickvals=[(n - 1) * ALTURA_PISO for n in PISOS], ticktext=[str(n) for n in PISOS],
                        **estilo_eje),
             aspectmode="manual", aspectratio=ASPECTO,
             camera=dict(eye=dict(x=0.95, y=0.95, z=0.6)),
@@ -970,7 +976,17 @@ def dibujar_contorno():
             for n in pisos:
                 lx += [x for x, _ in c] + [None]
                 ly += [y for _, y in c] + [None]
-                lz += [int(n) * ALTURA_PISO] * len(c) + [None]
+                lz += [(int(n) - 1) * ALTURA_PISO] * len(c) + [None]
+        # Silueta de cada torre (si hay elevaciones): aristas de suelo a cubierta
+        if dd_piso.value == TODOS:
+            for k, z0, z1 in plano.get("volumenes", []):
+                c = plano["contornos"][k]
+                for x, y in c[:-1]:
+                    lx += [x, x, None]; ly += [y, y, None]; lz += [z0, z1, None]
+                for zz in (z0, z1):
+                    lx += [x for x, _ in c] + [None]
+                    ly += [y for _, y in c] + [None]
+                    lz += [zz] * len(c) + [None]
     fig.data[4].x, fig.data[4].y, fig.data[4].z = lx, ly, lz
 
 
