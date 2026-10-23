@@ -1525,6 +1525,7 @@ function actualizar() {
   // recién cuando react termina, porque parte de su trabajo es asíncrono
   if (cam) layout.scene.camera = cam;
   const dibujo = Plotly.react('grafico', trazas, layout, { responsive: true, displaylogo: false });
+  Promise.resolve(dibujo).then(sinSeleccion);
   if (cam) Promise.resolve(dibujo).then(() => {
     if (!arrastrando) Plotly.relayout('grafico', { 'scene.camera': cam });  // no pisar un giro en curso
   });
@@ -1538,6 +1539,24 @@ function actualizar() {
     $('resumen').textContent = `${nOt} OT en ${conOt} departamentos · máx. ${max} fallas/depto`
       + ' · Doble clic en una burbuja para ver sus fallas por tipo';
   }
+}
+
+// Plotly elige en 3D un único objeto bajo el cursor (el más cercano), así que los vidrios,
+// muros y volúmenes que envuelven las burbujas las tapaban: el mouse nunca llegaba a una
+// burbuja y el doble clic no abría su molécula. Las trazas con hoverinfo 'skip' quedan fuera
+// del búfer de selección (pickSlots = 0); quitar y volver a agregar un objeto lo reasigna.
+function sinSeleccion() {
+  const sc = $('grafico')._fullLayout.scene && $('grafico')._fullLayout.scene._scene;
+  const gp = sc && sc.glplot;
+  if (!gp || !gp.objects) return;
+  let cambiado = null;
+  Object.values(sc.traces).forEach(t => {
+    if (!t.data || t.data.hoverinfo !== 'skip') return;
+    Object.values(t).forEach(o => {
+      if (o && typeof o === 'object' && o.pickSlots && gp.objects.includes(o)) { o.pickSlots = 0; cambiado = o; }
+    });
+  });
+  if (cambiado) { gp.remove(cambiado); gp.add(cambiado); }
 }
 
 function rangoFechas() {
