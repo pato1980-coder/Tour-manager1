@@ -1030,19 +1030,6 @@ def alternar_time_lapse(ch):
 
 tl_btn.observe(alternar_time_lapse, names="value")
 
-# Botones de zoom: acercan o alejan la cámara actual (también durante el time lapse)
-btn_acercar = widgets.Button(description="＋", tooltip="Acercar", layout=widgets.Layout(width="40px"))
-btn_alejar = widgets.Button(description="－", tooltip="Alejar", layout=widgets.Layout(width="40px"))
-
-
-def zoom_camara(factor):
-    e = fig.layout.scene.camera.eye
-    x, y, z = (e.x, e.y, e.z) if e.x is not None else (0.95, 0.95, 0.6)
-    fig.layout.scene.camera.eye = dict(x=x * factor, y=y * factor, z=z * factor)
-
-
-btn_acercar.on_click(lambda _: zoom_camara(0.8))
-btn_alejar.on_click(lambda _: zoom_camara(1.25))
 tl_dia.observe(actualizar_grafico, names="value")
 tl_vel.observe(lambda ch: setattr(tl_play, "step", ch.new), names="value")
 
@@ -1162,7 +1149,7 @@ btn_fullscreen = widgets.HTML(
 fila_filtros = widgets.HBox([dd_edificio, dd_piso, dd_clase, btn_fullscreen],
                             layout=widgets.Layout(align_items="center", gap="12px"))
 panel = widgets.VBox([fila_filtros, sl_fechas, lbl_resumen,
-                      widgets.HBox([tl_btn, tl_ctl, btn_acercar, btn_alejar], layout=widgets.Layout(gap="12px")),
+                      widgets.HBox([tl_btn, tl_ctl], layout=widgets.Layout(gap="12px")),
                       widgets.HBox([caja_leyenda, fig])])
 panel.add_class("ot-viz-container")
 

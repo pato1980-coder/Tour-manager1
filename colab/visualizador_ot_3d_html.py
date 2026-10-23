@@ -776,12 +776,8 @@ __PLOTLY__
   .aviso-error { color: #ffb86b; border: 1px solid #5a3a1a; border-radius: 8px;
     padding: 12px 14px; max-width: 70ch; }
   #zona { position: relative; flex: 1 1 auto; display: flex; min-height: 560px; }
-  #grafico { flex: 1 1 auto; min-width: 0; width: 100%; }
-  #zoomCtl { position: absolute; left: 8px; bottom: 10px; z-index: 4; display: flex;
-    flex-direction: column; gap: 6px; }
-  #zoomCtl button { width: 36px; height: 36px; border-radius: 8px; border: 1px solid #3a3a50;
-    background: rgba(20, 20, 30, .9); color: #eee; font: 600 18px/1 inherit; cursor: pointer; }
-  #zoomCtl button:hover, #zoomCtl button:focus-visible { background: #262636; outline: none; }
+  /* touch-action: none evita que el navegador agrande la página con el pellizco */
+  #grafico { flex: 1 1 auto; min-width: 0; width: 100%; touch-action: none; }
   #leyenda { position: absolute; top: 54px; left: 8px; width: min(300px, calc(100% - 16px));
     max-height: calc(100% - 70px); overflow: auto; background: rgba(8, 8, 14, .9);
     border: 1px solid #2c2c3a; border-radius: 10px; padding: 12px 14px; z-index: 5;
@@ -849,10 +845,6 @@ __PLOTLY__
   <div id="zona">
     <div id="grafico"></div>
     <aside id="leyenda" hidden></aside>
-    <div id="zoomCtl" role="group" aria-label="Zoom">
-      <button type="button" id="zoomMas" title="Acercar (tecla +)">&#xFF0B;</button>
-      <button type="button" id="zoomMenos" title="Alejar (tecla −)">&#xFF0D;</button>
-    </div>
   </div>
 </div>
 <script>
@@ -1161,16 +1153,45 @@ function programarActualizacion() {
   });
 }
 
-// Botones y teclas de zoom: funcionan con cualquier dispositivo y también durante el time
-// lapse (el siguiente cuadro parte de la cámara que se ve)
+// Zoom: acerca (f < 1) o aleja (f > 1) la cámara que se ve. Funciona también durante el time
+// lapse, porque el siguiente cuadro parte de esa cámara. Los cambios de un mismo cuadro de
+// pantalla se juntan en uno solo para que el gesto se sienta fluido.
+let zoomPendiente = 1, zoomProgramado = false;
 function zoomCamara(f) {
-  const cam = camaraViva() || layout.scene.camera, e = cam.eye;
-  const nueva = Object.assign({}, cam, { eye: { x: e.x * f, y: e.y * f, z: e.z * f } });
-  layout.scene.camera = nueva;
-  Plotly.relayout('grafico', { 'scene.camera': nueva });
+  zoomPendiente *= f;
+  if (zoomProgramado) return;
+  zoomProgramado = true;
+  requestAnimationFrame(() => {
+    zoomProgramado = false;
+    const k = zoomPendiente;
+    zoomPendiente = 1;
+    const cam = camaraViva() || layout.scene.camera, e = cam.eye;
+    const nueva = Object.assign({}, cam, { eye: { x: e.x * k, y: e.y * k, z: e.z * k } });
+    layout.scene.camera = nueva;
+    Plotly.relayout('grafico', { 'scene.camera': nueva });
+  });
 }
-$('zoomMas').addEventListener('click', () => zoomCamara(0.8));
-$('zoomMenos').addEventListener('click', () => zoomCamara(1.25));
+
+// Pellizco con dos dedos en pantallas táctiles: separar acerca y juntar aleja. Se intercepta
+// antes de que llegue a Plotly, que con dos dedos no hace zoom y se corta con los redibujos.
+let pellizco = null;
+const distanciaDedos = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+$('grafico').addEventListener('touchstart', ev => {
+  if (ev.touches.length !== 2) return;
+  pellizco = distanciaDedos(ev.touches);
+  ev.preventDefault(); ev.stopPropagation();
+}, { capture: true, passive: false });
+$('grafico').addEventListener('touchmove', ev => {
+  if (ev.touches.length !== 2 || !pellizco) return;
+  ev.preventDefault(); ev.stopPropagation();
+  const d = distanciaDedos(ev.touches);
+  if (d > 0) { zoomCamara(pellizco / d); pellizco = d; }
+}, { capture: true, passive: false });
+['touchend', 'touchcancel'].forEach(tipo => $('grafico').addEventListener(tipo, ev => {
+  if (ev.touches.length < 2) pellizco = null;
+}, true));
+
+// Teclas + y - como alternativa en computadores
 document.addEventListener('keydown', ev => {
   if (/^(SELECT|INPUT)$/.test(document.activeElement.tagName)) return;
   if (ev.key === '+' || ev.key === '=') zoomCamara(0.8);
@@ -1187,16 +1208,13 @@ function camaraViva() {
 // se arrastra no se redibuja (el time lapse sigue contando días) y al soltar se pone al día
 let arrastrando = false;
 $('grafico').addEventListener('pointerdown', () => { arrastrando = true; }, true);
-// El zoom con la rueda de Plotly no sobrevive a los redibujos seguidos del time lapse: mientras
-// se reproduce, la rueda acerca o aleja la cámara directamente (mismo sentido que Plotly) y el
-// siguiente cuadro la conserva. En pausa o fuera del time lapse actúa el zoom normal de Plotly.
+// Rueda y pellizco en trackpad (el navegador lo entrega como rueda con ctrlKey). El pellizco
+// siempre se maneja aquí, para que no agrande la página. La rueda normal se deja a Plotly salvo
+// con el time lapse corriendo, donde su zoom no sobreviviría a los redibujos seguidos.
 $('grafico').addEventListener('wheel', ev => {
-  if (!(tl.activo && tl.corriendo)) return;
+  if (!ev.ctrlKey && !(tl.activo && tl.corriendo)) return;
   ev.preventDefault(); ev.stopPropagation();
-  const cam = camaraViva();
-  if (!cam) return;
-  const f = Math.exp(ev.deltaY * 0.0015), e = cam.eye;
-  Plotly.relayout('grafico', { 'scene.camera': Object.assign({}, cam, { eye: { x: e.x * f, y: e.y * f, z: e.z * f } }) });
+  zoomCamara(Math.exp(ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0015)));
 }, { capture: true, passive: false });
 function soltar() {
   if (!arrastrando) return;
