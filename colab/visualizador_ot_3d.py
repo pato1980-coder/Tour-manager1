@@ -56,8 +56,12 @@ GRID_MIN, GRID_MAX = 3, 7  # grilla dinámica 3x3 … 7x7
 # X hacia la derecha y Y hacia arriba de la lámina). Los edificios que no aparecen aquí
 # usan la grilla cuadrada genérica.
 PLANTAS = {
-    # Somma Asturias, láminas MP-PG-110 (piso 3), 111 (pisos 4–15) y 112 (pisos 16–18):
-    # 12 deptos por piso en anillo alrededor del núcleo de ascensores y escalera.
+    # Somma Asturias, láminas MP-PG-110 (piso 3), 111 (pisos 4–15), 112 (pisos 16–18) y
+    # 113 (piso 19): 12 deptos por piso en anillo alrededor del patio central, con la escalera
+    # al poniente y los ascensores al oriente. El piso 19 solo tiene el bloque central (deptos
+    # 01, 02, 11 y 12); en las alas quedan la piscina y la sala de calderas sobre la cubierta.
+    # Los pisos 1 y 2 son el zócalo comercial (sin deptos). Medidas tomadas de la planta tipo
+    # escaneada, calibrada con las cotas totales (33,57 m de ancho y 31,00 m de fondo).
     "Somma Asturias": {
         "deptos": {
             9: (-13.2, 10.0), 11: (-4.8, 10.5), 12: (4.8, 10.5), 10: (13.2, 10.0),
@@ -65,11 +69,55 @@ PLANTAS = {
             5: (-12.4, -2.85), 6: (12.4, -2.85),
             3: (-13.2, -10.0), 1: (-4.8, -10.5), 2: (4.8, -10.5), 4: (13.2, -10.0),
         },
-        # Contorno exterior de la planta y del núcleo central (patio + circulaciones)
-        "contornos": [
-            [(-16.8, 13.4), (16.8, 13.4), (16.8, -13.3), (-16.8, -13.3), (-16.8, 13.4)],
-            [(-8.4, 6.3), (8.4, 6.3), (8.4, -6.4), (-8.4, -6.4), (-8.4, 6.3)],
+        "deptos_por_piso": [
+            ((19, 19), {11: (-4.8, 10.5), 12: (4.8, 10.5), 1: (-4.8, -10.5), 2: (4.8, -10.5)}),
         ],
+        # Muros exteriores: la planta completa (pisos 1–18) y el bloque central del piso 19
+        "contornos": [
+            [(-15.12, 13.75), (15.12, 13.75), (15.12, -13.7), (-15.12, -13.7), (-15.12, 13.75)],
+            [(-9.63, 13.75), (9.63, 13.75), (9.63, -13.7), (-9.63, -13.7), (-9.63, 13.75)],
+        ],
+        "pisos_contorno": [(1, 18), (19, 19)],
+        # Volúmenes: alas hasta la cubierta del piso 18 (+45,0) y bloque central hasta el 19 (+47,5)
+        "volumenes": [(0, 0.0, 45.0), (1, 45.0, 47.5)],
+        "areas_comunes": [
+            ("Corredor", (-9.63, 5.8, 9.63, 7.53), 0.0, 47.5),
+            ("Corredor", (-9.63, -7.55, 9.63, -5.91), 0.0, 47.5),
+            ("Corredor", (6.12, -5.91, 7.92, 5.8), 0.0, 47.5),
+            ("Escaleras", (-7.83, -5.91, -3.6, 5.8), 0.0, 47.5),
+            ("Ascensores", (3.6, -3.23, 6.12, 5.8), 0.0, 47.5),
+            ("Sala de máquinas", (3.6, -3.23, 6.12, 5.8), 47.5, 50.5),
+        ],
+        # Terrazas: la franja norte y sur del bloque central (1,8 m) y la columna de terrazas de
+        # cada ala (poniente y oriente, solo pisos 3–18), con sus retornos hasta el muro
+        "terrazas": {
+            "Asturias": [
+                ((-9.63, 15.5), (9.63, 15.5)), ((-9.63, 15.5), (-9.63, 13.75)),
+                ((9.63, 15.5), (9.63, 13.75)),
+                ((-9.63, -15.5), (9.63, -15.5)), ((-9.63, -15.5), (-9.63, -13.7)),
+                ((9.63, -15.5), (9.63, -13.7)),
+                ((-16.85, 12.95), (-16.85, -12.95), (3, 18)), ((-16.85, 12.95), (-15.12, 12.95), (3, 18)),
+                ((-16.85, -12.95), (-15.12, -12.95), (3, 18)),
+                ((16.85, 12.95), (16.85, -12.95), (3, 18)), ((15.12, 12.95), (16.85, 12.95), (3, 18)),
+                ((15.12, -12.95), (16.85, -12.95), (3, 18)),
+            ],
+        },
+        # Muros entre deptos (las alas solo hasta el piso 18)
+        "particiones": {
+            "Asturias": [
+                ((-16.85, 6.25), (-9.63, 6.25), (3, 18)), ((-16.85, 0.0), (-7.92, 0.0), (3, 18)),
+                ((-16.85, -6.2), (-9.63, -6.2), (3, 18)),
+                ((9.63, 6.25), (16.85, 6.25), (3, 18)), ((7.92, 0.0), (16.85, 0.0), (3, 18)),
+                ((9.63, -6.2), (16.85, -6.2), (3, 18)),
+                ((-9.63, 13.75), (-9.63, 7.53), (3, 18)), ((9.63, 13.75), (9.63, 7.53), (3, 18)),
+                ((-9.63, -7.55), (-9.63, -13.7), (3, 18)), ((9.63, -7.55), (9.63, -13.7), (3, 18)),
+                ((0.0, 15.5), (0.0, 7.53)), ((0.0, -7.55), (0.0, -15.5)),
+            ],
+        },
+        "fachada": {
+            "Alas": {"contorno": 0, "ciegos": []},
+            "Piso 19": {"contorno": 1, "ciegos": []},
+        },
     },
     # Somma Las Clarisas, láminas LC A006 (piso 2), A007 (piso 3) y A008 (pisos 4–10),
     # escala 1:100. Torres A (bloque recto + inicio de la curva) y B (ala curva) en una
@@ -700,7 +748,7 @@ def paños_fachada(plano):
     paños = {"losas": [], "vidrios": [], "ciegos": [], "parapetos": []}
     for f in plano.get("fachada", {}).values():
         k = f["contorno"]
-        z1 = next(v[2] for v in plano["volumenes"] if v[0] == k)
+        z0, z1 = next(v[1:] for v in plano["volumenes"] if v[0] == k)
         c = plano["contornos"][k]
         aristas = [(c[i], c[i + 1]) for i in range(len(c) - 1)]
         # tramos de vidrio: cada arista sin los muros ciegos que caen sobre ella
@@ -718,7 +766,8 @@ def paños_fachada(plano):
                 if t0 - t > 0.05:
                     vidrios.append(((ax + ux * t, ay + uy * t), (ax + ux * t0, ay + uy * t0)))
                 t = max(t, t1)
-        niveles = [n * ALTURA_PISO for n in range(int(z1 / ALTURA_PISO) + 1) if n * ALTURA_PISO < z1 - 0.5] + [z1]
+        niveles = [n * ALTURA_PISO for n in range(round(z0 / ALTURA_PISO), int(z1 / ALTURA_PISO) + 1)
+                   if n * ALTURA_PISO < z1 - 0.5] + [z1]
         for za, zb in zip(niveles, niveles[1:]):
             n = round(za / ALTURA_PISO) + 1
             for (x0, y0), (x1, y1) in aristas:
@@ -1120,12 +1169,16 @@ def dibujar_contorno():
                 pisos = [n for n in pisos if n == int(dd_piso.value)]
             for n in pisos:
                 zz = (int(n) - 1) * ALTURA_PISO
-                for (x0, y0), (x1, y1) in segs:
+                for (x0, y0), (x1, y1), *rango in segs:
+                    if rango and not rango[0][0] <= n <= rango[0][1]:
+                        continue  # tramo con rango de pisos propio
                     # línea en el piso y en el cielo, y el muro entre ambas
                     fx += [x0, x1, None, x0, x1, None]; fy += [y0, y1, None, y0, y1, None]
                     fz += [zz, zz, None, zz + ALTURA_PISO, zz + ALTURA_PISO, None]
                     agregar_paño(muros, x0, y0, x1, y1, zz, zz + ALTURA_PISO)
-                for (x0, y0), (x1, y1) in plano.get("terrazas", {}).get(torre, []):
+                for (x0, y0), (x1, y1), *rango in plano.get("terrazas", {}).get(torre, []):
+                    if rango and not rango[0][0] <= n <= rango[0][1]:
+                        continue
                     agregar_paño(antepechos, x0, y0, x1, y1, zz, zz + 1)
         # Corredores y núcleos: de suelo a cubierta, o solo el tramo del piso elegido
         for tipo, (x0, y0, x1, y1), z0, z1 in plano.get("areas_comunes", []):
