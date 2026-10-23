@@ -46,14 +46,12 @@ COLORES_TIPO = [
 COLOR_SIN_TIPO = "#8A8F98"
 
 # Posiciones reales según planos de arquitectura (metros desde el centro de la planta,
-# X hacia la derecha y Y hacia arriba de la lámina). "escala" pasa metros a unidades
-# de grilla para que cada planta quepa en ±3. Los edificios que no aparecen aquí
+# X hacia la derecha y Y hacia arriba de la lámina). Los edificios que no aparecen aquí
 # usan la grilla cuadrada genérica.
 PLANTAS = {
     # Somma Asturias, láminas MP-PG-110 (piso 3), 111 (pisos 4–15) y 112 (pisos 16–18):
     # 12 deptos por piso en anillo alrededor del núcleo de ascensores y escalera.
     "Somma Asturias": {
-        "escala": 3 / 16.8,
         "deptos": {
             9: (-13.2, 10.0), 11: (-4.8, 10.5), 12: (4.8, 10.5), 10: (13.2, 10.0),
             7: (-12.4, 2.85), 8: (12.4, 2.85),
@@ -71,7 +69,6 @@ PLANTAS = {
     # misma planta, por eso las claves son (torre, depto). Posiciones tomadas de las
     # etiquetas N° de la lámina del piso 3.
     "Somma Las Clarisas": {
-        "escala": 3 / 31.4,
         "unir_torres": True,
         "deptos": {
             ("A", 1): (-2.6, 13.2), ("A", 2): (3.5, 18.9), ("A", 3): (6.2, 21.4),
@@ -103,7 +100,6 @@ PLANTAS = {
     # Austral (deptos 10–17) hacia calle Jorge Cáceres. Las etiquetas de la lámina están
     # junto al pasillo central; cada punto se llevó al centro de su lado del pasillo.
     "Ronda Lo Ovalle": {
-        "escala": 3 / 42.6,
         "unir_torres": True,
         "deptos": {
             ("Boreal", 1): (-7.1, 33.2), ("Boreal", 2): (-7.1, 35.0), ("Boreal", 3): (0.4, 35.0),
@@ -127,7 +123,6 @@ PLANTAS = {
     # F-E = 164,16 m dan 0,0956 m por punto); las coordenadas usan esa calibración.
     # Las plantas de los pisos 2, 4, 5–8 y 9 tienen la misma distribución (±1 m).
     "Somma Ines de Suarez": {
-        "escala": 3 / 45.6,
         "unir_torres": True,
         "deptos": {
             ("MAYOR", 1): (37.6, 29.0), ("MAYOR", 2): (37.6, 21.4), ("MAYOR", 3): (22.2, 20.1), ("MAYOR", 4): (12.3, 20.1),
@@ -158,7 +153,6 @@ PLANTAS = {
     # centro de su lado del pasillo. La torre NORTE de los pisos 20 a 25 (M27–M29) tiene
     # la misma distribución.
     "Somma Parque Bustamante": {
-        "escala": 3 / 28.5,
         "unir_torres": True,
         "deptos": {
             ("NORTE", 1): (10.5, -2.4), ("NORTE", 2): (11.2, 1.9), ("NORTE", 3): (12.5, 9.0),
@@ -182,7 +176,6 @@ PLANTAS = {
     # cada punto se llevó al centro de su lado. La distribución cambia según el piso.
     # En PL-08 (pisos 4–7) el rótulo 416A está en el margen; se usa la posición del piso 3.
     "Somma Plaza Ñuñoa": {
-        "escala": 3 / 40.1,
         "unir_torres": True,
         # Respaldo para pisos fuera de los rangos de abajo: la planta del piso 3
         "deptos": {
@@ -349,7 +342,6 @@ PLANTAS = {
     # por el rótulo de la línea divisoria. Las etiquetas están junto al pasillo; cada
     # punto se llevó al centro de su fila de departamentos.
     "Somma Vista Calan": {
-        "escala": 3 / 34.3,
         "unir_torres": True,
         "deptos": {
             ("SVCA", 1): (-6.5, 5.3), ("SVCA", 2): (-10.2, 5.3), ("SVCA", 3): (-13.9, 5.3),
@@ -381,7 +373,6 @@ PLANTAS = {
     # Cada depto rotula sus números de piso apilados en el mismo lugar (207, 307, 407…);
     # se usan las posiciones del piso 2. El segundo bloque de la lámina no está numerado.
     "Somma Valle La Piramide": {
-        "escala": 3 / 57.8,
         "deptos": {
             1: (48.5, 12.9), 2: (52.1, 10.6), 3: (46.4, 9.5), 4: (52.0, 3.1), 5: (46.4, 1.9),
             6: (52.0, -1.1), 7: (46.4, -2.5), 8: (52.0, -8.7), 9: (52.0, -13.0), 10: (47.4, -15.5),
@@ -404,7 +395,6 @@ PLANTAS = {
     # junto al pasillo: en el tramo central cada punto se llevó al centro de su fila y en los
     # extremos al centro del bloque. Pisos sin lámina: el 3 usa la A04 y el 22 la A07.
     "Ronda Terravista": {
-        "escala": 3 / 28.6,
         "deptos": {
             1: (13.6, -5.4), 2: (18.6, -5.4), 3: (24.4, -4.6), 4: (24.4, 0.0), 5: (24.4, 4.0),
             6: (17.2, 4.3), 7: (11.3, 4.3), 8: (-1.6, 4.3), 9: (-6.1, 4.3), 10: (-14.9, 4.3),
@@ -434,7 +424,9 @@ PLANTAS = {
         ],
     },
 }
-MARGEN_EJES = 1.0          # margen estático de seguridad en X/Y/Z
+MARGEN_EJES = 5.0          # margen estático de seguridad en planta (m)
+ALTURA_PISO = 2.5          # altura de piso a piso (m): la maqueta va a escala real
+MODULO_GRILLA = 6.0        # separación (m) entre deptos en la grilla de edificios sin plano
 GRID_MIN, GRID_MAX = 3, 7  # grilla dinámica 3x3 … 7x7
 
 # Escala continua Azul -> Morado -> Rojo
@@ -599,15 +591,15 @@ def asignar_coordenadas(grupo):
         if desde <= piso <= hasta:  # planta propia de este rango de pisos
             posiciones = por_piso
     if plano and all(k in posiciones for k in claves):
-        grupo["X"] = [posiciones[k][0] * plano["escala"] for k in claves]
-        grupo["Y"] = [posiciones[k][1] * plano["escala"] for k in claves]
+        grupo["X"] = [posiciones[k][0] for k in claves]
+        grupo["Y"] = [posiciones[k][1] for k in claves]
         grupo["Grid_Size"] = 0  # posición según plano, no grilla
         return grupo
     grid_size = tamano_grilla(len(grupo))
     offset = (grid_size - 1) / 2.0           # centrado matemático en (0,0)
     idx = np.arange(len(grupo))
-    grupo["X"] = (idx % grid_size) - offset
-    grupo["Y"] = (idx // grid_size) - offset
+    grupo["X"] = ((idx % grid_size) - offset) * MODULO_GRILLA
+    grupo["Y"] = ((idx // grid_size) - offset) * MODULO_GRILLA
     grupo["Grid_Size"] = grid_size
     return grupo
 
@@ -620,8 +612,8 @@ def pisos_contorno(deptos, edificio, plano, k):
         sel &= deptos["Torre"] == torres[k]
     rango = (plano.get("pisos_contorno") or [None] * len(plano["contornos"]))[k]
     if rango:
-        sel &= deptos["Z"].between(*rango)
-    return sorted(int(z) for z in deptos.loc[sel, "Z"].unique())
+        sel &= deptos["Piso_Num"].between(*rango)
+    return sorted(int(z) for z in deptos.loc[sel, "Piso_Num"].unique())
 
 
 def construir_modelo(df):
@@ -632,12 +624,19 @@ def construir_modelo(df):
         [asignar_coordenadas(g) for _, g in deptos.groupby(["Edificio", "Piso_Num"])],
         ignore_index=True,
     )
-    deptos["Z"] = deptos["Piso_Num"]
+    deptos["Z"] = deptos["Piso_Num"] * ALTURA_PISO  # altura real del piso (m)
 
-    # Escala fija absoluta (calculada ANTES de cualquier filtro)
-    lim_xy = float(max(deptos["X"].abs().max(), deptos["Y"].abs().max())) + MARGEN_EJES
-    rango_z = [float(deptos["Z"].min()) - MARGEN_EJES, float(deptos["Z"].max()) + MARGEN_EJES]
+    # Escala fija absoluta (calculada ANTES de cualquier filtro), en metros e incluyendo los
+    # contornos de planta; la misma escala en planta y altura (proporciones reales)
+    contornos = [pt for ed, p in PLANTAS.items() if (deptos["Edificio"] == ed).any()
+                 for c in p["contornos"] for pt in c]
+    lim_xy = max([float(deptos["X"].abs().max()), float(deptos["Y"].abs().max())]
+                 + [max(abs(x), abs(y)) for x, y in contornos]) + MARGEN_EJES
+    rango_z = [float(deptos["Z"].min()) - ALTURA_PISO, float(deptos["Z"].max()) + ALTURA_PISO]
     span_z = rango_z[1] - rango_z[0]
+    # rótulos del eje vertical: el primer piso y luego cada 5
+    pisos = [n for n in range(int(deptos["Piso_Num"].min()), int(deptos["Piso_Num"].max()) + 1)
+             if n == int(deptos["Piso_Num"].min()) or n % 5 == 0]
 
     # Cada OT se reduce a (índice de depto, día, clase, tipo) para filtrar en el navegador
     idx_depto = {d: i for i, d in enumerate(deptos["Depto_ID"])}
@@ -679,13 +678,15 @@ def construir_modelo(df):
         "rangoX": [-lim_xy, lim_xy],
         "rangoY": [-lim_xy, lim_xy],
         "rangoZ": rango_z,
-        "aspecto": {"x": 1, "y": 1, "z": max(0.6, min(2.5, span_z / (2 * lim_xy) * 0.6))},
+        "aspecto": {"x": 1, "y": 1, "z": span_z / (2 * lim_xy)},
+        "alturaPiso": ALTURA_PISO,
+        "pisos": pisos,
         "densidadMax": int(deptos["Densidad_Total"].max()),
         "escala": ESCALA_COLORES,
         # Contornos de planta (en unidades de grilla) y pisos donde dibujarlos
         "plantas": {
             ed: [
-                {"puntos": [[x * p["escala"], y * p["escala"]] for x, y in c],
+                {"puntos": [[x, y] for x, y in c],
                  "pisos": pisos_contorno(deptos, ed, p, k)}
                 for k, c in enumerate(p["contornos"])
             ]
@@ -854,10 +855,12 @@ const layout = {
   title: { text: 'Maqueta 3D de Fallas por Departamento', font: { color: '#eee' } },
   uirevision: 'fijo',  // conserva la cámara al filtrar
   scene: {
-    xaxis: eje('X (grilla)', M.rangoX), yaxis: eje('Y (grilla)', M.rangoY),
-    zaxis: eje('Piso', M.rangoZ, { dtick: 1 }),
+    xaxis: eje('X (m)', M.rangoX), yaxis: eje('Y (m)', M.rangoY),
+    // altura real (2,5 m por piso) rotulada con el número de piso
+    zaxis: eje(`Piso (${String(M.alturaPiso).replace('.', ',')} m c/u)`, M.rangoZ,
+      { tickvals: M.pisos.map(n => n * M.alturaPiso), ticktext: M.pisos.map(String) }),
     aspectmode: 'manual', aspectratio: M.aspecto,
-    camera: { eye: { x: 1.6, y: 1.6, z: 0.9 } }, bgcolor: '#000'
+    camera: { eye: { x: 0.95, y: 0.95, z: 0.6 } }, bgcolor: '#000'
   }
 };
 
@@ -882,7 +885,7 @@ function posicionesEsfera(n, r) {
 function trazasMolecula(i, porTipo) {
   const tipos = porTipo.map((n, t) => [t, n]).filter(([, n]) => n > 0).sort((p, q) => q[1] - p[1]);
   const maxN = tipos.length ? tipos[0][1] : 1;
-  const pos = posicionesEsfera(tipos.length, 1.4);
+  const pos = posicionesEsfera(tipos.length, 0.07 * (M.rangoX[1] - M.rangoX[0]));
   const cx = D.x[i], cy = D.y[i], cz = D.z[i];
   const lx = [], ly = [], lz = [], sx = [], sy = [], sz = [], sc = [], ss = [], st = [], sh = [];
   tipos.forEach(([t, n], k) => {
@@ -1002,7 +1005,7 @@ function actualizar() {
     const lx = [], ly = [], lz = [];
     planta.forEach(c => {
       c.pisos.filter(z => p === TODOS || String(z) === p).forEach(z => {
-        c.puntos.forEach(([px, py]) => { lx.push(px); ly.push(py); lz.push(z); });
+        c.puntos.forEach(([px, py]) => { lx.push(px); ly.push(py); lz.push(z * M.alturaPiso); });
         lx.push(null); ly.push(null); lz.push(null);
       });
     });
