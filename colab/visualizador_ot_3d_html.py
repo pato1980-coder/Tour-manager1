@@ -110,7 +110,8 @@ PLANTAS = {
             ("Austral", 14): (5.9, -25.8), ("Austral", 15): (5.9, -30.9),
             ("Austral", 16): (-2.3, -35.5), ("Austral", 17): (-2.3, -31.1),
         },
-        # Contorno de cada torre (muros exteriores), solo en los pisos de esa torre
+        # Contorno de cada torre (muros exteriores, medidos en la planta A05 ampliada), solo en
+        # los pisos de esa torre
         "torres_contorno": ["Boreal", "Austral"],
         # Silueta de cada torre según elevaciones y cortes (láminas A16 a A20): niveles N.P.T.
         # de la cubierta. Boreal = Ed. Lo Ovalle (pisos 1–16, mirador +40,00, cubierta +43,15);
@@ -126,7 +127,23 @@ PLANTAS = {
             ("Escaleras", (-5.14, -26.15, -2.05, -16.89), 0.2, 55.28),
             ("Ascensores", (-2.05, -25.93, 0.82, -19.54), 0.2, 55.28),
         ],
-        # Muros entre departamentos (planta A05), dibujados en cada piso de su torre
+        # Antepechos de terrazas (planta A05): paños de 1 m de alto en la línea de fachada,
+        # centrados en cada rótulo "TERRAZA" y de ~3 m de largo, en cada piso de su torre
+        "terrazas": {
+            "Boreal": [
+                ((5.23, 34.73), (5.23, 37.73)), ((-10.56, 34.73), (-10.56, 37.73)),
+                ((5.23, 28.82), (5.23, 31.82)), ((5.23, 23.4), (5.23, 26.4)),
+                ((5.23, 14.82), (5.23, 17.82)), ((-10.56, 14.8), (-10.56, 17.8)),
+                ((-10.56, 6.72), (-10.56, 9.72)), ((5.23, 6.72), (5.23, 9.72)),
+            ],
+            "Austral": [
+                ((-5.14, -8.12), (-5.14, -5.12)), ((9.19, -11.63), (9.19, -8.63)),
+                ((9.19, -15.84), (9.19, -12.84)), ((-5.14, -16.26), (-5.14, -13.26)),
+                ((9.19, -26.8), (9.19, -23.8)), ((-5.14, -31.16), (-5.14, -28.16)),
+                ((9.19, -33.05), (9.19, -30.05)), ((-5.14, -39.38), (-5.14, -36.38)),
+            ],
+        },
+        # Muros entre departamentos (planta A05), como muros de piso a cielo en cada piso de su torre
         "particiones": {
             "Boreal": [((-10.56, 33.82), (-4.12, 33.82)), ((-10.56, 27.96), (-4.12, 27.96)),
                        ((-10.56, 20.15), (-4.12, 20.15)), ((-10.56, 13.98), (-4.12, 13.98)),
@@ -138,8 +155,8 @@ PLANTAS = {
                         ((2.36, -27.69), (9.19, -27.69))],
         },
         "contornos": [
-            [(-10.0, 42.6), (5.0, 42.6), (5.0, 5.0), (-10.0, 5.0), (-10.0, 42.6)],
-            [(-6.4, -0.3), (10.0, -0.3), (10.0, -42.6), (-6.4, -42.6), (-6.4, -0.3)],
+            [(-10.56, 42.65), (5.23, 42.65), (5.23, 4.06), (-10.56, 4.06), (-10.56, 42.65)],
+            [(-5.14, -2.12), (9.19, -2.12), (9.19, -41.81), (-5.14, -41.81), (-5.14, -2.12)],
         ],
     },
     # Somma Ines de Suarez, lámina A-07 (piso 3), con torres MAYOR (deptos 1–43, en C
@@ -795,7 +812,8 @@ def construir_modelo(df):
         "particiones": {
             ed: [{"pisos": sorted(int(n) for n in deptos.loc[(deptos["Edificio"] == ed) & (deptos["Torre"] == t),
                                                               "Piso_Num"].unique()),
-                  "segs": [[x0, y0, x1, y1] for (x0, y0), (x1, y1) in segs]}
+                  "segs": [[x0, y0, x1, y1] for (x0, y0), (x1, y1) in segs],
+                  "terrazas": [[x0, y0, x1, y1] for (x0, y0), (x1, y1) in p.get("terrazas", {}).get(t, [])]}
                  for t, segs in p["particiones"].items()]
             for ed, p in PLANTAS.items() if p.get("particiones") and (deptos["Edificio"] == ed).any()
         },
@@ -1018,6 +1036,21 @@ function trazasMolecula(i, porTipo) {
   ];
 }
 
+// Paños verticales (muros y antepechos) como una sola malla: cada segmento en planta se levanta
+// de z0 a z1 con dos triángulos
+function paños() {
+  const m = { x: [], y: [], z: [], i: [], j: [], k: [] };
+  return {
+    agregar(x0, y0, x1, y1, z0, z1) {
+      const b = m.x.length;
+      m.x.push(x0, x1, x1, x0); m.y.push(y0, y1, y1, y0); m.z.push(z0, z0, z1, z1);
+      m.i.push(b, b); m.j.push(b + 1, b + 2); m.k.push(b + 2, b + 3);
+    },
+    traza: (color, opacidad) => Object.assign({ type: 'mesh3d', color, opacity: opacidad, flatshading: true,
+      hoverinfo: 'skip', showlegend: false, lighting: { ambient: 0.9, diffuse: 0.2, specular: 0 } }, m),
+  };
+}
+
 // Corredores, escaleras y ascensores como cajas blanquecinas translúcidas: de suelo a cubierta,
 // o solo el tramo del piso elegido. hoverinfo 'skip' para no tapar las burbujas al pasar el mouse.
 const COLOR_COMUN = { Corredor: '#dde3f2', Escaleras: '#f4f4fa', Ascensores: '#e4eaff' };
@@ -1135,7 +1168,7 @@ function actualizar() {
     type: 'scatter3d', mode: 'markers', x, y, z, text: t, showlegend: false,
     hovertemplate: '%{text}<extra></extra>',
     marker: { size: s, color: c, colorscale: M.escala, cmin: 0, cmax: tl.activo ? maxTl : M.densidadMax,
-      opacity: abierto >= 0 ? 0.12 : 0.9, line: { width: 0 },  // oscurece el resto al desplegar
+      opacity: abierto >= 0 ? 0.12 : 1, line: { width: 0 },  // opacas; se oscurecen al desplegar
       colorbar: { title: { text: tl.activo ? 'OT activas' : 'Fallas' }, thickness: 14 } }
   }];
   if (abierto >= 0) trazas.push(...trazasMolecula(abierto, porTipo));
@@ -1166,14 +1199,19 @@ function actualizar() {
       showlegend: false, line: { color: '#5a6288', width: 1 } });
   }
   const particiones = M.particiones[e];
-  if (particiones) {  // muros entre deptos, en cada piso de su torre
-    const qx = [], qy = [], qz = [];
+  if (particiones) {  // muros entre deptos (de piso a cielo) y antepechos de terrazas (1 m)
+    const qx = [], qy = [], qz = [], muros = paños(), antepechos = paños();
     particiones.forEach(t => t.pisos.filter(n => p === TODOS || String(n) === p).forEach(n => {
       const zz = (n - 1) * M.alturaPiso;
-      t.segs.forEach(([x0, y0, x1, y1]) => { qx.push(x0, x1, null); qy.push(y0, y1, null); qz.push(zz, zz, null); });
+      t.segs.forEach(([x0, y0, x1, y1]) => {
+        qx.push(x0, x1, null); qy.push(y0, y1, null); qz.push(zz, zz, null);
+        muros.agregar(x0, y0, x1, y1, zz, zz + M.alturaPiso);
+      });
+      t.terrazas.forEach(([x0, y0, x1, y1]) => antepechos.agregar(x0, y0, x1, y1, zz, zz + 1));
     }));
     trazas.push({ type: 'scatter3d', mode: 'lines', x: qx, y: qy, z: qz, hoverinfo: 'skip',
       showlegend: false, line: { color: '#3b4058', width: 1 } });
+    trazas.push(muros.traza('#9aa3c0', 0.10), antepechos.traza('#cfd6ea', 0.35));
   }
   const comunes = M.comunes[e];
   if (comunes) trazas.push(...trazasComunes(comunes, p));

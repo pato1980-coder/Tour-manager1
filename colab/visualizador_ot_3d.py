@@ -117,7 +117,8 @@ PLANTAS = {
             ("Austral", 14): (5.9, -25.8), ("Austral", 15): (5.9, -30.9),
             ("Austral", 16): (-2.3, -35.5), ("Austral", 17): (-2.3, -31.1),
         },
-        # Contorno de cada torre (muros exteriores), solo en los pisos de esa torre
+        # Contorno de cada torre (muros exteriores, medidos en la planta A05 ampliada), solo en
+        # los pisos de esa torre
         "torres_contorno": ["Boreal", "Austral"],
         # Silueta de cada torre según elevaciones y cortes (láminas A16 a A20): niveles N.P.T.
         # de la cubierta. Boreal = Ed. Lo Ovalle (pisos 1–16, mirador +40,00, cubierta +43,15);
@@ -133,7 +134,23 @@ PLANTAS = {
             ("Escaleras", (-5.14, -26.15, -2.05, -16.89), 0.2, 55.28),
             ("Ascensores", (-2.05, -25.93, 0.82, -19.54), 0.2, 55.28),
         ],
-        # Muros entre departamentos (planta A05), dibujados en cada piso de su torre
+        # Antepechos de terrazas (planta A05): paños de 1 m de alto en la línea de fachada,
+        # centrados en cada rótulo "TERRAZA" y de ~3 m de largo, en cada piso de su torre
+        "terrazas": {
+            "Boreal": [
+                ((5.23, 34.73), (5.23, 37.73)), ((-10.56, 34.73), (-10.56, 37.73)),
+                ((5.23, 28.82), (5.23, 31.82)), ((5.23, 23.4), (5.23, 26.4)),
+                ((5.23, 14.82), (5.23, 17.82)), ((-10.56, 14.8), (-10.56, 17.8)),
+                ((-10.56, 6.72), (-10.56, 9.72)), ((5.23, 6.72), (5.23, 9.72)),
+            ],
+            "Austral": [
+                ((-5.14, -8.12), (-5.14, -5.12)), ((9.19, -11.63), (9.19, -8.63)),
+                ((9.19, -15.84), (9.19, -12.84)), ((-5.14, -16.26), (-5.14, -13.26)),
+                ((9.19, -26.8), (9.19, -23.8)), ((-5.14, -31.16), (-5.14, -28.16)),
+                ((9.19, -33.05), (9.19, -30.05)), ((-5.14, -39.38), (-5.14, -36.38)),
+            ],
+        },
+        # Muros entre departamentos (planta A05), como muros de piso a cielo en cada piso de su torre
         "particiones": {
             "Boreal": [((-10.56, 33.82), (-4.12, 33.82)), ((-10.56, 27.96), (-4.12, 27.96)),
                        ((-10.56, 20.15), (-4.12, 20.15)), ((-10.56, 13.98), (-4.12, 13.98)),
@@ -145,8 +162,8 @@ PLANTAS = {
                         ((2.36, -27.69), (9.19, -27.69))],
         },
         "contornos": [
-            [(-10.0, 42.6), (5.0, 42.6), (5.0, 5.0), (-10.0, 5.0), (-10.0, 42.6)],
-            [(-6.4, -0.3), (10.0, -0.3), (10.0, -42.6), (-6.4, -42.6), (-6.4, -0.3)],
+            [(-10.56, 42.65), (5.23, 42.65), (5.23, 4.06), (-10.56, 4.06), (-10.56, 42.65)],
+            [(-5.14, -2.12), (9.19, -2.12), (9.19, -41.81), (-5.14, -41.81), (-5.14, -2.12)],
         ],
     },
     # Somma Ines de Suarez, lámina A-07 (piso 3), con torres MAYOR (deptos 1–43, en C
@@ -816,6 +833,11 @@ fig = go.FigureWidget(
         go.Mesh3d(x=[], y=[], z=[], i=[], j=[], k=[], name=tipo, color=color, opacity=0.16,
                   flatshading=True, hoverinfo="skip", lighting=dict(ambient=0.9, diffuse=0.2, specular=0))
         for tipo, color in COLOR_COMUN.items()
+    ] + [
+        # Muros entre deptos (piso a cielo) y antepechos de terrazas (1 m): índices 9 y 10
+        go.Mesh3d(x=[], y=[], z=[], i=[], j=[], k=[], name=nombre, color=color, opacity=opacidad,
+                  flatshading=True, hoverinfo="skip", lighting=dict(ambient=0.9, diffuse=0.2, specular=0))
+        for nombre, color, opacidad in [("Muros", "#9aa3c0", 0.10), ("Antepechos", "#cfd6ea", 0.35)]
     ],
     layout=go.Layout(
         template="plotly_dark",
@@ -962,7 +984,7 @@ def actualizar_grafico(*_):
         t.marker.cmax = escala_tl or DENSIDAD_MAX
         t.marker.colorbar.title.text = "OT activas" if escala_tl else "Fallas"
         t.text = textos
-        t.marker.opacity = 0.12 if abierto else 0.9  # oscurece el resto al desplegar
+        t.marker.opacity = 0.12 if abierto else 1  # opacas; se oscurecen al desplegar
         dibujar_molecula(df[m & (df["Depto_ID"] == abierto)] if abierto else None)
         dibujar_contorno()
         # Re-afirma los límites absolutos para que nada se auto-escale (no en cada cuadro del
@@ -1010,6 +1032,7 @@ def dibujar_contorno():
                 ly += [y for _, y in c] + [None]
                 lz += [(int(n) - 1) * ALTURA_PISO] * len(c) + [None]
     fx, fy, fz = [], [], []  # líneas finas
+    muros, antepechos = (dict(x=[], y=[], z=[], i=[], j=[], k=[]) for _ in range(2))
     cajas = {tipo: dict(x=[], y=[], z=[], i=[], j=[], k=[]) for tipo in COLOR_COMUN}
     if plano:
         # Silueta de cada torre (si hay elevaciones): aristas de suelo a cubierta
@@ -1022,7 +1045,8 @@ def dibujar_contorno():
                     fx += [x for x, _ in c] + [None]
                     fy += [y for _, y in c] + [None]
                     fz += [zz] * len(c) + [None]
-        # Particiones entre deptos, en cada piso de su torre
+        # Particiones entre deptos (línea en el piso y muro de piso a cielo) y antepechos de
+        # terrazas (1 m de alto), en cada piso de su torre
         for torre, segs in plano.get("particiones", {}).items():
             pisos = sorted(deptos.loc[(deptos["Edificio"] == dd_edificio.value) & (deptos["Torre"] == torre),
                                       "Piso_Num"].unique())
@@ -1032,6 +1056,9 @@ def dibujar_contorno():
                 zz = (int(n) - 1) * ALTURA_PISO
                 for (x0, y0), (x1, y1) in segs:
                     fx += [x0, x1, None]; fy += [y0, y1, None]; fz += [zz, zz, None]
+                    agregar_paño(muros, x0, y0, x1, y1, zz, zz + ALTURA_PISO)
+                for (x0, y0), (x1, y1) in plano.get("terrazas", {}).get(torre, []):
+                    agregar_paño(antepechos, x0, y0, x1, y1, zz, zz + 1)
         # Corredores y núcleos: de suelo a cubierta, o solo el tramo del piso elegido
         for tipo, (x0, y0, x1, y1), z0, z1 in plano.get("areas_comunes", []):
             if dd_piso.value != TODOS:
@@ -1049,8 +1076,17 @@ def dibujar_contorno():
                 m["i"].append(b + a1); m["j"].append(b + a2); m["k"].append(b + a3)
     fig.data[4].x, fig.data[4].y, fig.data[4].z = lx, ly, lz
     fig.data[5].x, fig.data[5].y, fig.data[5].z = fx, fy, fz
-    for traza, tipo in zip(fig.data[6:], COLOR_COMUN):
+    for traza, tipo in zip(fig.data[6:9], COLOR_COMUN):
         traza.update(**cajas[tipo])
+    fig.data[9].update(**muros)
+    fig.data[10].update(**antepechos)
+
+
+def agregar_paño(m, x0, y0, x1, y1, z0, z1):
+    """Paño vertical: el segmento en planta (x0, y0)-(x1, y1) levantado de z0 a z1."""
+    b = len(m["x"])
+    m["x"] += [x0, x1, x1, x0]; m["y"] += [y0, y1, y1, y0]; m["z"] += [z0, z0, z1, z1]
+    m["i"] += [b, b]; m["j"] += [b + 1, b + 2]; m["k"] += [b + 2, b + 3]
 
 
 def dibujar_molecula(ots_depto):
