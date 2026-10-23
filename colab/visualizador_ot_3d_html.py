@@ -616,10 +616,43 @@ def pisos_contorno(deptos, edificio, plano, k):
     return sorted(int(z) for z in deptos.loc[sel, "Piso_Num"].unique())
 
 
+def agregar_deptos_sin_ot(deptos):
+    """Agrega con 0 OT los deptos que el plano tiene en cada piso pero que no registran OT,
+    para que la maqueta muestre el edificio completo (la burbuja más chica = 0 OT). Cada
+    torre se completa solo entre su piso más bajo y más alto con OT."""
+    filas = []
+    for ed, plano in PLANTAS.items():
+        sub = deptos[deptos["Edificio"] == ed]
+        if sub.empty:
+            continue
+        juntas = plano.get("unir_torres")
+        for torre, st in (sub.groupby("Torre") if juntas else [(sub["Torre"].iloc[0], sub)]):
+            for piso in range(int(st["Piso_Num"].min()), int(st["Piso_Num"].max()) + 1):
+                mapa = plano["deptos"]
+                for (desde, hasta), por_piso in plano.get("deptos_por_piso", []):
+                    if desde <= piso <= hasta:
+                        mapa = por_piso
+                existentes = set(st.loc[st["Piso_Num"] == piso, "Depto_Num"])
+                for clave in mapa:
+                    if juntas and clave[0] != torre:
+                        continue
+                    num = clave[1] if juntas else clave
+                    if num in existentes:
+                        continue
+                    filas.append({
+                        "Depto_ID": f"{ed} | {torre} | P{piso}-D{num:02d}", "Edificio": ed,
+                        "Torre": torre, "Piso_Num": piso, "Depto_Num": num,
+                        "Depto_Txt": f"Torre {torre} · Depto {num}" if juntas else f"Depto {num}",
+                        "Densidad_Total": 0,
+                    })
+    return pd.concat([deptos, pd.DataFrame(filas)], ignore_index=True) if filas else deptos
+
+
 def construir_modelo(df):
     # Densidad acumulada de fallas por departamento único (todo el conjunto)
     deptos = (df.groupby(["Depto_ID", "Edificio", "Torre", "Piso_Num", "Depto_Num", "Depto_Txt"])
                 .size().reset_index(name="Densidad_Total"))
+    deptos = agregar_deptos_sin_ot(deptos)
     deptos = pd.concat(
         [asignar_coordenadas(g) for _, g in deptos.groupby(["Edificio", "Piso_Num"])],
         ignore_index=True,
@@ -744,6 +777,11 @@ __PLOTLY__
     padding: 12px 14px; max-width: 70ch; }
   #zona { position: relative; flex: 1 1 auto; display: flex; min-height: 560px; }
   #grafico { flex: 1 1 auto; min-width: 0; width: 100%; }
+  #zoomCtl { position: absolute; left: 8px; bottom: 10px; z-index: 4; display: flex;
+    flex-direction: column; gap: 6px; }
+  #zoomCtl button { width: 36px; height: 36px; border-radius: 8px; border: 1px solid #3a3a50;
+    background: rgba(20, 20, 30, .9); color: #eee; font: 600 18px/1 inherit; cursor: pointer; }
+  #zoomCtl button:hover, #zoomCtl button:focus-visible { background: #262636; outline: none; }
   #leyenda { position: absolute; top: 54px; left: 8px; width: min(300px, calc(100% - 16px));
     max-height: calc(100% - 70px); overflow: auto; background: rgba(8, 8, 14, .9);
     border: 1px solid #2c2c3a; border-radius: 10px; padding: 12px 14px; z-index: 5;
@@ -811,6 +849,10 @@ __PLOTLY__
   <div id="zona">
     <div id="grafico"></div>
     <aside id="leyenda" hidden></aside>
+    <div id="zoomCtl" role="group" aria-label="Zoom">
+      <button type="button" id="zoomMas" title="Acercar (tecla +)">&#xFF0B;</button>
+      <button type="button" id="zoomMenos" title="Alejar (tecla −)">&#xFF0D;</button>
+    </div>
   </div>
 </div>
 <script>
@@ -821,7 +863,8 @@ const f0 = new Date(M.fecha0 + 'T00:00:00');
 const fmt = i => new Date(f0.getTime() + i * 864e5).toLocaleDateString('es-CL');
 const $ = id => document.getElementById(id);
 
-function tamano(d) { return d <= 1 ? 4 : d <= 5 ? 8 : d <= 10 ? 14 : d <= 15 ? 22 : 34; }
+// La burbuja más chica es un depto sin OT; las grandes (y rojas) son las más críticas
+function tamano(d) { return d === 0 ? 2 : d <= 1 ? 3 : d <= 5 ? 5 : d <= 10 ? 9 : d <= 15 ? 16 : 28; }
 function opciones(sel, valores, actual) {
   sel.innerHTML = '';
   [TODOS, ...valores].forEach(v => sel.add(new Option(v, v)));
@@ -982,14 +1025,17 @@ function actualizar() {
   const x = [], y = [], z = [], c = [], s = [], t = [];
   let max = 0;
   puntoADepto = [];
+  let conOt = 0;
   for (let i = 0; i < nDeptos; i++) {
     const d = cuenta[i];
-    if (!d) continue;
+    if (!visible(i)) continue;  // los deptos sin OT también se dibujan (punto mínimo)
     puntoADepto.push(i);
     x.push(D.x[i]); y.push(D.y[i]); z.push(D.z[i]); c.push(d);
-    s.push(tl.activo ? 6 + 26 * Math.sqrt(d / maxTl) : tamano(d));
+    s.push(tl.activo ? (d ? 3 + 25 * Math.sqrt(d / maxTl) : 2) : tamano(d));
     t.push(`<b>${D.edificio[i]}</b><br>Piso ${D.piso[i]} · ${esc(D.depto[i])}<br>`
-      + (tl.activo ? `OT activas (últimos ${VIDA_OT} días): <b>${d}</b>` : `Fallas en rango: <b>${d}</b>`));
+      + (d ? (tl.activo ? `OT activas (últimos ${VIDA_OT} días): <b>${d}</b>` : `Fallas en rango: <b>${d}</b>`)
+           : 'Sin OT'));
+    if (d) conOt++;
     max = Math.max(max, d);
   }
   const trazas = [{
@@ -1031,11 +1077,11 @@ function actualizar() {
   enlazarClics();
   mostrarLeyenda(abierto, porTipo);
   if (tl.activo) {
-    $('tlTexto').textContent = `${fmt(tl.dia)} · ${nOt} OT activas en ${x.length} deptos`;
+    $('tlTexto').textContent = `${fmt(tl.dia)} · ${nOt} OT activas en ${conOt} deptos`;
     $('resumen').textContent = `Time lapse: cada OT se muestra ${VIDA_OT} días desde su creación y luego se apaga`
       + ` · escala fija hasta ${maxTl} OT activas por depto · Espacio para pausar`;
   } else {
-    $('resumen').textContent = `${nOt} OT · ${x.length} departamentos visibles · máx. ${max} fallas/depto`
+    $('resumen').textContent = `${nOt} OT en ${conOt} departamentos · máx. ${max} fallas/depto`
       + ' · Doble clic en una burbuja para ver sus fallas por tipo';
   }
 }
@@ -1114,6 +1160,22 @@ function programarActualizacion() {
     actualizar();
   });
 }
+
+// Botones y teclas de zoom: funcionan con cualquier dispositivo y también durante el time
+// lapse (el siguiente cuadro parte de la cámara que se ve)
+function zoomCamara(f) {
+  const cam = camaraViva() || layout.scene.camera, e = cam.eye;
+  const nueva = Object.assign({}, cam, { eye: { x: e.x * f, y: e.y * f, z: e.z * f } });
+  layout.scene.camera = nueva;
+  Plotly.relayout('grafico', { 'scene.camera': nueva });
+}
+$('zoomMas').addEventListener('click', () => zoomCamara(0.8));
+$('zoomMenos').addEventListener('click', () => zoomCamara(1.25));
+document.addEventListener('keydown', ev => {
+  if (/^(SELECT|INPUT)$/.test(document.activeElement.tagName)) return;
+  if (ev.key === '+' || ev.key === '=') zoomCamara(0.8);
+  else if (ev.key === '-' || ev.key === '_') zoomCamara(1.25);
+});
 
 // Cámara que se ve en pantalla (incluye el giro que el usuario está haciendo)
 function camaraViva() {

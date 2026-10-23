@@ -612,6 +612,39 @@ def asignar_coordenadas(grupo):
     return grupo
 
 
+def agregar_deptos_sin_ot(deptos):
+    """Agrega con 0 OT los deptos que el plano tiene en cada piso pero que no registran OT,
+    para que la maqueta muestre el edificio completo (la burbuja más chica = 0 OT). Cada
+    torre se completa solo entre su piso más bajo y más alto con OT."""
+    filas = []
+    for ed, plano in PLANTAS.items():
+        sub = deptos[deptos["Edificio"] == ed]
+        if sub.empty:
+            continue
+        juntas = plano.get("unir_torres")
+        for torre, st in (sub.groupby("Torre") if juntas else [(sub["Torre"].iloc[0], sub)]):
+            for piso in range(int(st["Piso_Num"].min()), int(st["Piso_Num"].max()) + 1):
+                mapa = plano["deptos"]
+                for (desde, hasta), por_piso in plano.get("deptos_por_piso", []):
+                    if desde <= piso <= hasta:
+                        mapa = por_piso
+                existentes = set(st.loc[st["Piso_Num"] == piso, "Depto_Num"])
+                for clave in mapa:
+                    if juntas and clave[0] != torre:
+                        continue
+                    num = clave[1] if juntas else clave
+                    if num in existentes:
+                        continue
+                    filas.append({
+                        "Depto_ID": f"{ed} | {torre} | P{piso}-D{num:02d}", "Edificio": ed,
+                        "Torre": torre, "Piso_Num": piso, "Depto_Num": num,
+                        "Depto_Txt": f"Torre {torre} · Depto {num}" if juntas else f"Depto {num}",
+                        "Densidad_Total": 0,
+                    })
+    return pd.concat([deptos, pd.DataFrame(filas)], ignore_index=True) if filas else deptos
+
+
+deptos = agregar_deptos_sin_ot(deptos)
 deptos = pd.concat(
     [asignar_coordenadas(g) for _, g in deptos.groupby(["Edificio", "Piso_Num"])],
     ignore_index=True,
@@ -642,15 +675,18 @@ ASPECTO = dict(x=1, y=1, z=span_z / (2 * LIM_XY))
 
 
 def tamano_marcador(d):
+    """La burbuja más chica es un depto sin OT; las grandes (y rojas) son las más críticas."""
+    if d == 0:
+        return 2
     if d <= 1:
-        return 4
+        return 3
     if d <= 5:
-        return 8
+        return 5
     if d <= 10:
-        return 14
+        return 9
     if d <= 15:
-        return 22
-    return 34
+        return 16
+    return 28
 
 
 # Colores categóricos fijos por tipo (legibles sobre fondo negro); se reciclan si faltan
@@ -799,7 +835,7 @@ caja_leyenda = widgets.VBox(
                           border="1px solid #2c2c3a", margin="50px 8px 0 0"),
 )
 caja_leyenda.add_class("ot-leyenda")
-estado = {"abierto": None, "puntos": [], "ultimo": (None, 0.0)}
+estado = {"abierto": None, "puntos": [], "densidad": [], "ultimo": (None, 0.0)}
 
 
 def actualizar_pisos(*_):
@@ -827,24 +863,34 @@ def actualizar_grafico(*_):
         dia = DIA0 + pd.Timedelta(days=tl_dia.value)
         m &= (df["Fecha"] >= dia - pd.Timedelta(days=VIDA_OT - 1)) & (df["Fecha"] < dia + pd.Timedelta(days=1))
 
-    # Densidad dentro del rango filtrado; posiciones y escalas siguen fijas
-    sub = (df[m].groupby(["Depto_ID", "Edificio", "Piso_Num", "Depto_Num", "Depto_Txt", "X", "Y", "Z"])
-               .size().reset_index(name="Densidad"))
+    # Densidad dentro del rango filtrado; posiciones y escalas siguen fijas. Los deptos del
+    # edificio/piso sin OT en el rango también se dibujan, como el punto más chico.
+    base = deptos
+    if dd_edificio.value != TODOS:
+        base = base[base["Edificio"] == dd_edificio.value]
+    if dd_piso.value != TODOS:
+        base = base[base["Piso_Num"] == int(dd_piso.value)]
+    cuenta = df[m].groupby("Depto_ID").size().rename("Densidad")
+    sub = base[["Depto_ID", "Edificio", "Piso_Num", "Depto_Num", "Depto_Txt", "X", "Y", "Z"]].merge(
+        cuenta, left_on="Depto_ID", right_index=True, how="left").fillna({"Densidad": 0})
+    sub["Densidad"] = sub["Densidad"].astype(int)
+    estado["densidad"] = sub["Densidad"].tolist()
+    con_ot = int((sub["Densidad"] > 0).sum())
     estado["puntos"] = sub["Depto_ID"].tolist()
-    if estado["abierto"] not in estado["puntos"]:
-        estado["abierto"] = None  # el filtro dejó fuera al depto abierto
+    if estado["abierto"] not in set(sub.loc[sub["Densidad"] > 0, "Depto_ID"]):
+        estado["abierto"] = None  # el filtro dejó fuera al depto abierto (o quedó sin OT)
     abierto = estado["abierto"]
 
     etiqueta = f"OT activas (últimos {VIDA_OT} días)" if escala_tl else "Fallas en rango"
-    textos = [f"<b>{r.Edificio}</b><br>Piso {r.Piso_Num} · {r.Depto_Txt}"
-              f"<br>{etiqueta}: <b>{r.Densidad}</b>"
+    textos = [f"<b>{r.Edificio}</b><br>Piso {r.Piso_Num} · {r.Depto_Txt}<br>"
+              + (f"{etiqueta}: <b>{r.Densidad}</b>" if r.Densidad else "Sin OT")
               for r in sub.itertuples()]
 
     with fig.batch_update():
         t = fig.data[0]
         t.x, t.y, t.z = sub["X"].tolist(), sub["Y"].tolist(), sub["Z"].tolist()
-        t.marker.size = [6 + 26 * math.sqrt(d / escala_tl) if escala_tl else tamano_marcador(d)
-                         for d in sub["Densidad"]]
+        t.marker.size = [(3 + 25 * math.sqrt(d / escala_tl) if d else 2) if escala_tl
+                         else tamano_marcador(d) for d in sub["Densidad"]]
         t.marker.color = sub["Densidad"].tolist()
         t.marker.cmax = escala_tl or DENSIDAD_MAX
         t.marker.colorbar.title.text = "OT activas" if escala_tl else "Fallas"
@@ -861,13 +907,13 @@ def actualizar_grafico(*_):
 
     if escala_tl:
         tl_lbl.value = (f"<span style='color:#eee'>{dia:%d-%m-%Y} · {int(m.sum())} OT activas "
-                        f"en {len(sub)} deptos</span>")
+                        f"en {con_ot} deptos</span>")
         lbl_resumen.value = (f"<span style='color:#9aa0a6'>Time lapse: cada OT se muestra {VIDA_OT} días "
                              f"desde su creación y luego se apaga · escala fija hasta {escala_tl} OT "
                              f"activas por depto</span>")
         return
-    lbl_resumen.value = (f"<span style='color:#9aa0a6'>{int(m.sum())} OT · "
-                         f"{len(sub)} departamentos visibles · máx. "
+    lbl_resumen.value = (f"<span style='color:#9aa0a6'>{int(m.sum())} OT en "
+                         f"{con_ot} departamentos · máx. "
                          f"{int(sub['Densidad'].max()) if len(sub) else 0} fallas/depto · "
                          f"Clic en una burbuja para ver sus fallas por tipo</span>")
 
@@ -948,6 +994,8 @@ def al_hacer_clic(trace, points, selector):
     if not points.point_inds:
         return
     if trace is fig.data[0]:
+        if not estado["densidad"][points.point_inds[0]]:
+            return  # depto sin OT: no hay tipos que desplegar
         depto = estado["puntos"][points.point_inds[0]]
     else:
         depto = estado["abierto"]  # clic en el núcleo de la molécula
@@ -981,6 +1029,20 @@ def alternar_time_lapse(ch):
 
 
 tl_btn.observe(alternar_time_lapse, names="value")
+
+# Botones de zoom: acercan o alejan la cámara actual (también durante el time lapse)
+btn_acercar = widgets.Button(description="＋", tooltip="Acercar", layout=widgets.Layout(width="40px"))
+btn_alejar = widgets.Button(description="－", tooltip="Alejar", layout=widgets.Layout(width="40px"))
+
+
+def zoom_camara(factor):
+    e = fig.layout.scene.camera.eye
+    x, y, z = (e.x, e.y, e.z) if e.x is not None else (0.95, 0.95, 0.6)
+    fig.layout.scene.camera.eye = dict(x=x * factor, y=y * factor, z=z * factor)
+
+
+btn_acercar.on_click(lambda _: zoom_camara(0.8))
+btn_alejar.on_click(lambda _: zoom_camara(1.25))
 tl_dia.observe(actualizar_grafico, names="value")
 tl_vel.observe(lambda ch: setattr(tl_play, "step", ch.new), names="value")
 
@@ -1100,7 +1162,7 @@ btn_fullscreen = widgets.HTML(
 fila_filtros = widgets.HBox([dd_edificio, dd_piso, dd_clase, btn_fullscreen],
                             layout=widgets.Layout(align_items="center", gap="12px"))
 panel = widgets.VBox([fila_filtros, sl_fechas, lbl_resumen,
-                      widgets.HBox([tl_btn, tl_ctl], layout=widgets.Layout(gap="12px")),
+                      widgets.HBox([tl_btn, tl_ctl, btn_acercar, btn_alejar], layout=widgets.Layout(gap="12px")),
                       widgets.HBox([caja_leyenda, fig])])
 panel.add_class("ot-viz-container")
 
