@@ -763,7 +763,7 @@ def tamano_marcador(d):
 
 
 # Colores de las áreas comunes (cajas translúcidas): índices de traza 6 en adelante
-COLOR_COMUN = {"Corredor": "#3e4556", "Escaleras": "#4a4f60", "Ascensores": "#363d52"}
+COLOR_COMUN = {"Corredor": "#262b38", "Escaleras": "#2e3342", "Ascensores": "#222838"}
 
 # Colores categóricos fijos por tipo (legibles sobre fondo negro); se reciclan si faltan
 COLORES_TIPO = [
@@ -831,13 +831,13 @@ fig = go.FigureWidget(
     ] + [
         # Corredores, escaleras y ascensores: cajas blanquecinas translúcidas
         go.Mesh3d(x=[], y=[], z=[], i=[], j=[], k=[], name=tipo, color=color, opacity=0.45,
-                  flatshading=True, hoverinfo="skip", lighting=dict(ambient=0.9, diffuse=0.2, specular=0))
+                  flatshading=True, hoverinfo="skip", lighting=dict(ambient=0.6, diffuse=0.2, specular=0, roughness=1, fresnel=0))
         for tipo, color in COLOR_COMUN.items()
     ] + [
         # Muros entre deptos (piso a cielo) y antepechos de terrazas (1 m): índices 9 y 10
         go.Mesh3d(x=[], y=[], z=[], i=[], j=[], k=[], name=nombre, color=color, opacity=opacidad,
-                  flatshading=True, hoverinfo="skip", lighting=dict(ambient=0.9, diffuse=0.2, specular=0))
-        for nombre, color, opacidad in [("Muros", "#8f98b8", 0.30), ("Antepechos", "#cfd6ea", 0.35)]
+                  flatshading=True, hoverinfo="skip", lighting=dict(ambient=0.6, diffuse=0.2, specular=0, roughness=1, fresnel=0))
+        for nombre, color, opacidad in [("Muros", "#8f98b8", 0.30), ("Antepechos", "#3d4456", 0.55)]
     ],
     layout=go.Layout(
         template="plotly_dark",

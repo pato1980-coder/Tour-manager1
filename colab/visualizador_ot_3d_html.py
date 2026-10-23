@@ -1047,13 +1047,13 @@ function paños() {
       m.i.push(b, b); m.j.push(b + 1, b + 2); m.k.push(b + 2, b + 3);
     },
     traza: (color, opacidad) => Object.assign({ type: 'mesh3d', color, opacity: opacidad, flatshading: true,
-      hoverinfo: 'skip', showlegend: false, lighting: { ambient: 0.9, diffuse: 0.2, specular: 0 } }, m),
+      hoverinfo: 'skip', showlegend: false, lighting: { ambient: 0.6, diffuse: 0.2, specular: 0, roughness: 1, fresnel: 0 } }, m),
   };
 }
 
 // Corredores, escaleras y ascensores como cajas blanquecinas translúcidas: de suelo a cubierta,
 // o solo el tramo del piso elegido. hoverinfo 'skip' para no tapar las burbujas al pasar el mouse.
-const COLOR_COMUN = { Corredor: '#3e4556', Escaleras: '#4a4f60', Ascensores: '#363d52' };
+const COLOR_COMUN = { Corredor: '#262b38', Escaleras: '#2e3342', Ascensores: '#222838' };
 function trazasComunes(comunes, piso) {
   const porTipo = {};
   comunes.forEach(a => {
@@ -1074,7 +1074,7 @@ function trazasComunes(comunes, piso) {
   return Object.entries(porTipo).map(([tipo, m]) => Object.assign({
     type: 'mesh3d', name: tipo, color: COLOR_COMUN[tipo] || '#e8ecf8', opacity: 0.45,
     flatshading: true, hoverinfo: 'skip', showlegend: false,
-    lighting: { ambient: 0.9, diffuse: 0.2, specular: 0 },
+    lighting: { ambient: 0.6, diffuse: 0.2, specular: 0, roughness: 1, fresnel: 0 },
   }, m));
 }
 
@@ -1213,7 +1213,7 @@ function actualizar() {
     }));
     trazas.push({ type: 'scatter3d', mode: 'lines', x: qx, y: qy, z: qz, hoverinfo: 'skip',
       showlegend: false, line: { color: '#3b4058', width: 1 } });
-    trazas.push(muros.traza('#8f98b8', 0.30), antepechos.traza('#cfd6ea', 0.35));
+    trazas.push(muros.traza('#8f98b8', 0.30), antepechos.traza('#3d4456', 0.55));
   }
   const comunes = M.comunes[e];
   if (comunes) trazas.push(...trazasComunes(comunes, p));
