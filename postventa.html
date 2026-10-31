@@ -256,6 +256,7 @@ function toast(m){
 }
 
 let ARBOL={};
+let CATALOGO=[];
 let requerimientos=[];
 let pendingPhotos=[];
 const selected={recinto:'',lugar:'',item:'',problema:''};
@@ -267,7 +268,8 @@ const PLACEHOLDERS={
 };
 
 fetch('data/postventa-arbol.json').then(r=>r.json()).then(data=>{
-  ARBOL=data;
+  ARBOL=data.arbol;
+  CATALOGO=data.catalogo;
   setDropdownOptions('recinto',Object.keys(ARBOL),'Selecciona un recinto…');
 }).catch(()=>toast('No se pudo cargar el catálogo de recintos'));
 
@@ -320,7 +322,8 @@ function selectDropdownOption(key,value){
     setDropdownOptions('item',Object.keys(ARBOL[selected.recinto][value]||{}),PLACEHOLDERS.item);
     setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
   }else if(key==='item'){
-    setDropdownOptions('problema',ARBOL[selected.recinto][selected.lugar][value]||[],PLACEHOLDERS.problema);
+    const catIdx=ARBOL[selected.recinto][selected.lugar][value];
+    setDropdownOptions('problema',CATALOGO[catIdx]||[],PLACEHOLDERS.problema);
   }
 }
 
