@@ -33,6 +33,17 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,12,18,.97);
 
 select:disabled{opacity:.35;cursor:not-allowed}
 
+.link-suggest{background:none;border:none;color:var(--b);font-family:var(--mo);font-size:9px;letter-spacing:.03em;padding:0;margin-top:6px;cursor:pointer;text-align:left}
+.link-suggest:hover{text-decoration:underline}
+.link-suggest:disabled{color:var(--muted);cursor:not-allowed;text-decoration:none}
+.suggest-box{margin-top:8px;padding:10px;background:rgba(91,184,245,.06);border:1px solid rgba(91,184,245,.2);border-radius:10px}
+.suggest-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.suggest-chip{background:rgba(91,184,245,.14);border:1px solid rgba(91,184,245,.35);color:var(--b);
+  font-family:var(--mo);font-size:10px;letter-spacing:.02em;padding:6px 10px;border-radius:20px;cursor:pointer;transition:background .15s}
+.suggest-chip:hover{background:rgba(91,184,245,.26)}
+.suggest-chip .pct{opacity:.6;margin-left:4px}
+.suggest-empty{font-family:var(--mo);font-size:9px;color:var(--muted);margin-top:8px;line-height:1.6}
+
 .ddown{position:relative}
 .ddown-btn{background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;color:var(--text);
   font-family:inherit;font-size:14px;padding:10px 12px;width:100%;outline:none;transition:border-color .15s;
@@ -164,6 +175,12 @@ select:disabled{opacity:.35;cursor:not-allowed}
         <div class="ddown-panel" id="dd-lugar-panel"></div>
       </div>
       <div class="err">Selecciona un lugar</div>
+      <button type="button" class="link-suggest" id="btn-suggest-toggle" onclick="toggleSuggestBox()" disabled>🔎 No encuentro mi lugar, descríbelo</button>
+      <div class="suggest-box" id="suggest-box" hidden>
+        <textarea id="suggest-text" rows="2" placeholder="Describe el problema con tus palabras… ej. «se filtra agua de la llave de la cocina»" oninput="onSuggestInput()"></textarea>
+        <div class="suggest-chips" id="suggest-chips"></div>
+        <div class="suggest-empty" id="suggest-empty" hidden>No encontramos una coincidencia clara para este recinto. Selecciona el lugar manualmente.</div>
+      </div>
     </div>
 
     <div class="row">
@@ -300,6 +317,67 @@ fetch('data/postventa-arbol.json').then(r=>r.json()).then(data=>{
   setDropdownOptions('tipo',Object.keys(ARBOL),PLACEHOLDERS.tipo);
 }).catch(()=>toast('No se pudo cargar el catálogo de recintos'));
 
+let MODELO=null;
+fetch('data/postventa-modelo.json').then(r=>r.json()).then(data=>{ MODELO=data; }).catch(()=>{});
+
+// --- Clasificador texto libre -> categoría (TF-IDF + LinearSVC entrenado sobre tickets reales) ---
+const CATEGORIA_TO_ITEMS={
+  'CAÑERÍAS / AGUA / GRIFERÍA':['GRIFERIA','AGUA POTABLE'],
+  'COCINA / ARTEFACTOS DE COCINA':['KIT COCINA'],
+  'ELÉCTRICO / ILUMINACIÓN / ENCHUFES / INTERRUPTORES':['ILUMINACION','RED ELECTRICA'],
+  'VENTANAS / VIDRIOS / MAMPARAS / CRISTALES':['VENTANA / MAMPARA'],
+  'QUINCALLERÍA INTERIOR':['PUERTA','MOBILIARIO'],
+  'PUERTAS Y MARCOS':['PUERTA'],
+  'AGUA CALIENTE':['AGUA CALIENTE'],
+  'PISOS / PAVIMENTOS':['PAVIMENTO'],
+  'CITÓFONO / CABLEADO DE DATOS / CONTROL DE ACCESO':['CORRIENTES DEBILES / TI','SEGURIDAD Y CONTROL ACCESO'],
+  'AIRE ACONDICIONADO':['CLIMATIZACION'],
+  'MOBILIARIO / CLOSETS / MELAMINAS / REPISAS / BARANDAS':['MOBILIARIO','BARANDA / PASAMANOS'],
+  'ASCENSORES':['ASCENSOR'],
+  'IMPERMEABILIZACIÓN / TECHUMBRE':['CUBIERTA / TECHUMBRE'],
+  'CALEFACCIÓN':['CLIMATIZACION'],
+  'ALCANTARILLADO':['ALCANTARILLADO'],
+  'CERRADURA INTELIGENTE':['PUERTA'],
+  'OTROS':[],'HUMEDAD / FILTRACIONES':[],'PINTURAS':[],
+};
+const TOKEN_RE=/[\p{L}\p{N}_]{2,}/gu;
+function tokenize(text){return (text.toLowerCase().match(TOKEN_RE))||[]}
+function buildNgrams(tokens,stopwordSet,nMin,nMax){
+  const filtered=tokens.filter(t=>!stopwordSet.has(t));
+  const ngrams=[];
+  for(let n=nMin;n<=nMax;n++){
+    for(let i=0;i+n<=filtered.length;i++)ngrams.push(filtered.slice(i,i+n).join(' '));
+  }
+  return ngrams;
+}
+function vectorizeText(text,model){
+  const stopwordSet=new Set(model.stopwords);
+  const tokens=tokenize(text);
+  const ngrams=buildNgrams(tokens,stopwordSet,model.ngram_min,model.ngram_max);
+  const counts=new Map();
+  for(const g of ngrams){
+    if(g in model.vocab){const idx=model.vocab[g];counts.set(idx,(counts.get(idx)||0)+1)}
+  }
+  let sumsq=0;const tfidf=new Map();
+  for(const [idx,tf] of counts){const v=tf*model.idf[idx];tfidf.set(idx,v);sumsq+=v*v}
+  const norm=Math.sqrt(sumsq)||1;
+  for(const [idx,v] of tfidf)tfidf.set(idx,v/norm);
+  return tfidf;
+}
+function classifyText(text,model){
+  const vec=vectorizeText(text,model);
+  const scores=model.classes.map((_,c)=>{
+    let s=model.intercept[c];
+    for(const [idx,v] of vec)s+=v*model.coef[c][idx];
+    return s;
+  });
+  const maxS=Math.max(...scores);
+  const exps=scores.map(s=>Math.exp(s-maxS));
+  const sumExp=exps.reduce((a,b)=>a+b,0);
+  const softmax=exps.map(e=>e/sumExp);
+  return model.classes.map((label,i)=>({label,score:scores[i],pct:softmax[i]})).sort((a,b)=>b.score-a.score);
+}
+
 function setDropdownOptions(key,options,placeholder,enabled){
   enabled=enabled===undefined?options.length>0:enabled;
   const dd=document.getElementById('dd-'+key);
@@ -353,17 +431,21 @@ function selectDropdownOption(key,value){
     setDropdownOptions('item',[],PLACEHOLDERS.item,false);
     setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
   }else if(key==='recinto'){
-    setDropdownOptions('lugar',Object.keys(ARBOL[selected.tipo][selected.condicion][value]||{}),PLACEHOLDERS.lugar);
+    const lugares=Object.keys(ARBOL[selected.tipo][selected.condicion][value]||{});
+    setDropdownOptions('lugar',lugares,PLACEHOLDERS.lugar);
     setDropdownOptions('item',[],PLACEHOLDERS.item,false);
     setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+    resetSuggestBox(lugares.length>0);
   }else if(key==='lugar'){
     const items=ARBOL[selected.tipo][selected.condicion][selected.recinto][value]||{};
     setDropdownOptions('item',Object.keys(items),PLACEHOLDERS.item);
     setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+    resetSuggestBox(true);
   }else if(key==='item'){
     const catIdx=ARBOL[selected.tipo][selected.condicion][selected.recinto][selected.lugar][value];
     setDropdownOptions('problema',CATALOGO[catIdx]||[],PLACEHOLDERS.problema);
   }
+  if(key==='tipo'||key==='condicion')resetSuggestBox(false);
 }
 
 function resetDropdowns(){
@@ -373,6 +455,68 @@ function resetDropdowns(){
   setDropdownOptions('lugar',[],PLACEHOLDERS.lugar,false);
   setDropdownOptions('item',[],PLACEHOLDERS.item,false);
   setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+  resetSuggestBox(false);
+}
+
+function resetSuggestBox(enabled){
+  document.getElementById('btn-suggest-toggle').disabled=!enabled;
+  document.getElementById('suggest-box').hidden=true;
+  document.getElementById('suggest-text').value='';
+  document.getElementById('suggest-chips').innerHTML='';
+  document.getElementById('suggest-empty').hidden=true;
+}
+
+function toggleSuggestBox(){
+  const btn=document.getElementById('btn-suggest-toggle');
+  if(btn.disabled)return;
+  const box=document.getElementById('suggest-box');
+  const willShow=box.hidden;
+  box.hidden=!willShow;
+  if(willShow)document.getElementById('suggest-text').focus();
+}
+
+let suggestDebounceTimer=null;
+function onSuggestInput(){
+  clearTimeout(suggestDebounceTimer);
+  suggestDebounceTimer=setTimeout(runSuggestion,350);
+}
+
+function runSuggestion(){
+  const text=document.getElementById('suggest-text').value.trim();
+  const chipsEl=document.getElementById('suggest-chips');
+  const emptyEl=document.getElementById('suggest-empty');
+  chipsEl.innerHTML='';
+  emptyEl.hidden=true;
+  if(!text||!MODELO||!selected.recinto)return;
+  const availableLugares=Object.keys(ARBOL[selected.tipo][selected.condicion][selected.recinto]||{});
+  const ranked=classifyText(text,MODELO);
+  const MIN_CONFIANZA=0.12;
+  const matched=[];
+  const seen=new Set();
+  for(const r of ranked){
+    if(r.pct<MIN_CONFIANZA)break;
+    const lugares=CATEGORIA_TO_ITEMS[r.label]||[];
+    for(const lugar of lugares){
+      if(availableLugares.includes(lugar)&&!seen.has(lugar)){
+        seen.add(lugar);
+        matched.push({lugar,pct:r.pct});
+      }
+    }
+    if(matched.length>=3)break;
+  }
+  if(!matched.length){emptyEl.hidden=false;return}
+  matched.slice(0,3).forEach(m=>{
+    const chip=document.createElement('button');
+    chip.type='button';
+    chip.className='suggest-chip';
+    chip.innerHTML=escapeHtml(m.lugar)+' <span class="pct">'+Math.round(m.pct*100)+'%</span>';
+    chip.addEventListener('click',()=>selectSuggestedLugar(m.lugar));
+    chipsEl.appendChild(chip);
+  });
+}
+
+function selectSuggestedLugar(value){
+  selectDropdownOption('lugar',value);
 }
 
 function clearField(id){document.getElementById(id).classList.remove('invalid')}
