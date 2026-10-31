@@ -117,11 +117,36 @@ select:disabled{opacity:.35;cursor:not-allowed}
   <div class="card">
     <div class="card-t"><span class="n">1</span> Agregar requerimiento</div>
 
+    <div class="row">
+      <div class="field" id="f-tipo">
+        <label>Tipo *</label>
+        <div class="ddown" id="dd-tipo">
+          <button type="button" class="ddown-btn" onclick="toggleDropdown('tipo')">
+            <span class="ddown-label" id="dd-tipo-label">Selecciona un tipo…</span>
+            <span class="ddown-arrow">▾</span>
+          </button>
+          <div class="ddown-panel" id="dd-tipo-panel"></div>
+        </div>
+        <div class="err">Selecciona un tipo</div>
+      </div>
+      <div class="field" id="f-condicion">
+        <label>Condición *</label>
+        <div class="ddown" id="dd-condicion" data-disabled="true">
+          <button type="button" class="ddown-btn" onclick="toggleDropdown('condicion')" disabled>
+            <span class="ddown-label" id="dd-condicion-label">Selecciona un tipo primero…</span>
+            <span class="ddown-arrow">▾</span>
+          </button>
+          <div class="ddown-panel" id="dd-condicion-panel"></div>
+        </div>
+        <div class="err">Selecciona una condición</div>
+      </div>
+    </div>
+
     <div class="field" id="f-recinto">
       <label>Recinto *</label>
-      <div class="ddown" id="dd-recinto">
-        <button type="button" class="ddown-btn" onclick="toggleDropdown('recinto')">
-          <span class="ddown-label" id="dd-recinto-label">Selecciona un recinto…</span>
+      <div class="ddown" id="dd-recinto" data-disabled="true">
+        <button type="button" class="ddown-btn" onclick="toggleDropdown('recinto')" disabled>
+          <span class="ddown-label" id="dd-recinto-label">Selecciona una condición primero…</span>
           <span class="ddown-arrow">▾</span>
         </button>
         <div class="ddown-panel" id="dd-recinto-panel"></div>
@@ -259,9 +284,11 @@ let ARBOL={};
 let CATALOGO=[];
 let requerimientos=[];
 let pendingPhotos=[];
-const selected={recinto:'',lugar:'',item:'',problema:''};
+const selected={tipo:'',condicion:'',recinto:'',lugar:'',item:'',problema:''};
 const PLACEHOLDERS={
-  recinto:'Selecciona un recinto…',
+  tipo:'Selecciona un tipo…',
+  condicion:'Selecciona un tipo primero…',
+  recinto:'Selecciona una condición primero…',
   lugar:'Selecciona un recinto primero…',
   item:'Selecciona un lugar primero…',
   problema:'Selecciona un ítem primero…'
@@ -270,7 +297,7 @@ const PLACEHOLDERS={
 fetch('data/postventa-arbol.json').then(r=>r.json()).then(data=>{
   ARBOL=data.arbol;
   CATALOGO=data.catalogo;
-  setDropdownOptions('recinto',Object.keys(ARBOL),'Selecciona un recinto…');
+  setDropdownOptions('tipo',Object.keys(ARBOL),PLACEHOLDERS.tipo);
 }).catch(()=>toast('No se pudo cargar el catálogo de recintos'));
 
 function setDropdownOptions(key,options,placeholder,enabled){
@@ -314,21 +341,35 @@ function selectDropdownOption(key,value){
   dd.classList.add('has-value');
   document.getElementById('dd-'+key+'-label').textContent=value;
   clearField('f-'+key);
-  if(key==='recinto'){
-    setDropdownOptions('lugar',Object.keys(ARBOL[value]||{}),PLACEHOLDERS.lugar);
+  if(key==='tipo'){
+    setDropdownOptions('condicion',Object.keys(ARBOL[value]||{}),PLACEHOLDERS.condicion);
+    setDropdownOptions('recinto',[],PLACEHOLDERS.recinto,false);
+    setDropdownOptions('lugar',[],PLACEHOLDERS.lugar,false);
+    setDropdownOptions('item',[],PLACEHOLDERS.item,false);
+    setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+  }else if(key==='condicion'){
+    setDropdownOptions('recinto',Object.keys(ARBOL[selected.tipo][value]||{}),PLACEHOLDERS.recinto);
+    setDropdownOptions('lugar',[],PLACEHOLDERS.lugar,false);
+    setDropdownOptions('item',[],PLACEHOLDERS.item,false);
+    setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+  }else if(key==='recinto'){
+    setDropdownOptions('lugar',Object.keys(ARBOL[selected.tipo][selected.condicion][value]||{}),PLACEHOLDERS.lugar);
     setDropdownOptions('item',[],PLACEHOLDERS.item,false);
     setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
   }else if(key==='lugar'){
-    setDropdownOptions('item',Object.keys(ARBOL[selected.recinto][value]||{}),PLACEHOLDERS.item);
+    const items=ARBOL[selected.tipo][selected.condicion][selected.recinto][value]||{};
+    setDropdownOptions('item',Object.keys(items),PLACEHOLDERS.item);
     setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
   }else if(key==='item'){
-    const catIdx=ARBOL[selected.recinto][selected.lugar][value];
+    const catIdx=ARBOL[selected.tipo][selected.condicion][selected.recinto][selected.lugar][value];
     setDropdownOptions('problema',CATALOGO[catIdx]||[],PLACEHOLDERS.problema);
   }
 }
 
 function resetDropdowns(){
-  setDropdownOptions('recinto',Object.keys(ARBOL),PLACEHOLDERS.recinto);
+  setDropdownOptions('tipo',Object.keys(ARBOL),PLACEHOLDERS.tipo);
+  setDropdownOptions('condicion',[],PLACEHOLDERS.condicion,false);
+  setDropdownOptions('recinto',[],PLACEHOLDERS.recinto,false);
   setDropdownOptions('lugar',[],PLACEHOLDERS.lugar,false);
   setDropdownOptions('item',[],PLACEHOLDERS.item,false);
   setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
@@ -374,7 +415,7 @@ function removePendingPhoto(i){pendingPhotos.splice(i,1);renderPhotoStrip()}
 
 function validateReqForm(){
   let ok=true;
-  ['recinto','lugar','item','problema'].forEach(key=>{
+  ['tipo','condicion','recinto','lugar','item','problema'].forEach(key=>{
     const valid=!!selected[key];
     document.getElementById('f-'+key).classList.toggle('invalid',!valid);
     if(!valid)ok=false;
@@ -388,6 +429,8 @@ function validateReqForm(){
 function addRequerimiento(){
   if(!validateReqForm()){toast('Completa los campos obligatorios');return}
   requerimientos.push({
+    tipo:selected.tipo,
+    condicion:selected.condicion,
     recinto:selected.recinto,
     lugar:selected.lugar,
     item:selected.item,
@@ -399,7 +442,7 @@ function addRequerimiento(){
   document.getElementById('in-desc').value='';
   pendingPhotos=[];
   renderPhotoStrip();
-  ['f-recinto','f-lugar','f-item','f-problema','f-desc'].forEach(clearField);
+  ['f-tipo','f-condicion','f-recinto','f-lugar','f-item','f-problema','f-desc'].forEach(clearField);
   renderReqList();
   toast('Requerimiento agregado');
 }
@@ -421,7 +464,7 @@ function renderReqList(){
     <div class="req-item">
       <div class="idx">${i+1}</div>
       <div class="body">
-        <div class="path">${escapeHtml(r.recinto)} › ${escapeHtml(r.lugar)} › ${escapeHtml(r.item)}</div>
+        <div class="path">${escapeHtml(r.tipo)} · ${escapeHtml(r.condicion)} — ${escapeHtml(r.recinto)} › ${escapeHtml(r.lugar)} › ${escapeHtml(r.item)}</div>
         <div class="prob">${escapeHtml(r.problema)}</div>
         <div class="desc">${escapeHtml(r.descripcion)}</div>
         ${r.fotos.length?`<div class="thumbs">${r.fotos.map(f=>`<img src="${f}">`).join('')}</div>`:''}
