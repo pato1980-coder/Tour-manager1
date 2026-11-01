@@ -61,6 +61,7 @@ select:disabled{opacity:.35;cursor:not-allowed}
 .ddown-opt{padding:10px 12px;font-size:13px;color:var(--text);cursor:pointer}
 .ddown-opt:hover{background:rgba(91,184,245,.12)}
 .ddown-opt.selected{background:rgba(91,184,245,.18);color:var(--b);font-weight:700}
+.ddown-opt-suggest{font-style:italic;color:var(--b);border-top:1px solid var(--border);margin-top:2px}
 
 .photo-strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .photo-thumb{position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
@@ -164,11 +165,11 @@ select:disabled{opacity:.35;cursor:not-allowed}
         <div class="ddown-panel" id="dd-recinto-panel"></div>
       </div>
       <div class="err">Selecciona un recinto</div>
-      <button type="button" class="link-suggest" id="btn-suggest-toggle-recinto" onclick="toggleSuggestBox('recinto')" disabled>🔎 No encuentro mi recinto, descríbelo</button>
       <div class="suggest-box" id="suggest-box-recinto" hidden>
         <textarea id="suggest-text-recinto" rows="2" placeholder="Describe dónde está… ej. «el dormitorio principal del segundo piso»" oninput="onSuggestInput('recinto')" onblur="onSuggestBlur('recinto')"></textarea>
         <div class="suggest-chips" id="suggest-chips-recinto"></div>
         <div class="suggest-empty" id="suggest-empty-recinto" hidden>No encontramos una coincidencia clara. Selecciona el recinto manualmente.</div>
+        <button type="button" class="link-suggest" onclick="resetSuggestBox('recinto')">✕ Cancelar y volver al listado</button>
       </div>
     </div>
 
@@ -182,11 +183,11 @@ select:disabled{opacity:.35;cursor:not-allowed}
         <div class="ddown-panel" id="dd-lugar-panel"></div>
       </div>
       <div class="err">Selecciona un lugar</div>
-      <button type="button" class="link-suggest" id="btn-suggest-toggle-lugar" onclick="toggleSuggestBox('lugar')" disabled>🔎 No encuentro mi lugar, descríbelo</button>
       <div class="suggest-box" id="suggest-box-lugar" hidden>
         <textarea id="suggest-text-lugar" rows="2" placeholder="Describe el problema con tus palabras… ej. «se filtra agua de la llave de la cocina»" oninput="onSuggestInput('lugar')" onblur="onSuggestBlur('lugar')"></textarea>
         <div class="suggest-chips" id="suggest-chips-lugar"></div>
         <div class="suggest-empty" id="suggest-empty-lugar" hidden>No encontramos una coincidencia clara para este recinto. Selecciona el lugar manualmente.</div>
+        <button type="button" class="link-suggest" onclick="resetSuggestBox('lugar')">✕ Cancelar y volver al listado</button>
       </div>
     </div>
 
@@ -201,11 +202,11 @@ select:disabled{opacity:.35;cursor:not-allowed}
           <div class="ddown-panel" id="dd-item-panel"></div>
         </div>
         <div class="err">Selecciona un ítem</div>
-        <button type="button" class="link-suggest" id="btn-suggest-toggle-item" onclick="toggleSuggestBox('item')" disabled>🔎 No encuentro mi ítem, descríbelo</button>
         <div class="suggest-box" id="suggest-box-item" hidden>
           <textarea id="suggest-text-item" rows="2" placeholder="Describe la pieza o elemento… ej. «la manilla de la puerta corredera»" oninput="onSuggestInput('item')" onblur="onSuggestBlur('item')"></textarea>
           <div class="suggest-chips" id="suggest-chips-item"></div>
           <div class="suggest-empty" id="suggest-empty-item" hidden>No encontramos una coincidencia clara. Selecciona el ítem manualmente.</div>
+          <button type="button" class="link-suggest" onclick="resetSuggestBox('item')">✕ Cancelar y volver al listado</button>
         </div>
       </div>
       <div class="field" id="f-problema">
@@ -218,11 +219,11 @@ select:disabled{opacity:.35;cursor:not-allowed}
           <div class="ddown-panel" id="dd-problema-panel"></div>
         </div>
         <div class="err">Selecciona un problema</div>
-        <button type="button" class="link-suggest" id="btn-suggest-toggle-problema" onclick="toggleSuggestBox('problema')" disabled>🔎 No encuentro el problema, descríbelo</button>
         <div class="suggest-box" id="suggest-box-problema" hidden>
           <textarea id="suggest-text-problema" rows="2" placeholder="Describe qué le pasa… ej. «está suelta y hace ruido»" oninput="onSuggestInput('problema')" onblur="onSuggestBlur('problema')"></textarea>
           <div class="suggest-chips" id="suggest-chips-problema"></div>
           <div class="suggest-empty" id="suggest-empty-problema" hidden>No encontramos una coincidencia clara. Selecciona el problema manualmente.</div>
+          <button type="button" class="link-suggest" onclick="resetSuggestBox('problema')">✕ Cancelar y volver al listado</button>
         </div>
       </div>
     </div>
@@ -546,24 +547,28 @@ const SUGGEST_LEVELS={
   }
 };
 
-function resetSuggestBox(level,enabled){
-  document.getElementById('btn-suggest-toggle-'+level).disabled=!enabled;
+const SUGGEST_LABELS={
+  recinto:'🔎 No encuentro mi recinto, descríbelo',
+  lugar:'🔎 No encuentro mi lugar, descríbelo',
+  item:'🔎 No encuentro mi ítem, descríbelo',
+  problema:'🔎 No encuentro el problema, descríbelo'
+};
+
+function resetSuggestBox(level){
   document.getElementById('suggest-box-'+level).hidden=true;
   document.getElementById('suggest-text-'+level).value='';
   document.getElementById('suggest-chips-'+level).innerHTML='';
   document.getElementById('suggest-empty-'+level).hidden=true;
 }
 function resetAllSuggestBoxes(){
-  Object.keys(SUGGEST_LEVELS).forEach(level=>resetSuggestBox(level,SUGGEST_LEVELS[level].isReady()));
+  Object.keys(SUGGEST_LEVELS).forEach(resetSuggestBox);
 }
 
-function toggleSuggestBox(level){
-  const btn=document.getElementById('btn-suggest-toggle-'+level);
-  if(btn.disabled)return;
-  const box=document.getElementById('suggest-box-'+level);
-  const willShow=box.hidden;
-  box.hidden=!willShow;
-  if(willShow)document.getElementById('suggest-text-'+level).focus();
+function openSuggestFromDropdown(level){
+  const dd=document.getElementById('dd-'+level);
+  dd.classList.remove('open');
+  document.getElementById('suggest-box-'+level).hidden=false;
+  document.getElementById('suggest-text-'+level).focus();
 }
 
 const suggestDebounceTimers={};
@@ -675,6 +680,13 @@ function setDropdownOptions(key,options,placeholder,enabled){
     opt.addEventListener('click',()=>selectDropdownOption(key,o));
     panel.appendChild(opt);
   });
+  if(enabled&&SUGGEST_LABELS[key]){
+    const opt=document.createElement('div');
+    opt.className='ddown-opt ddown-opt-suggest';
+    opt.textContent=SUGGEST_LABELS[key];
+    opt.addEventListener('click',()=>openSuggestFromDropdown(key));
+    panel.appendChild(opt);
+  }
   if(!enabled||!options.includes(selected[key])){
     selected[key]='';
     document.getElementById('dd-'+key+'-label').textContent=placeholder;
