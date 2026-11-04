@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Postventa</title>
+<link rel="stylesheet" href="css/shared.css">
+<style>
+header{position:sticky;top:0;z-index:50;background:rgba(10,12,18,.97);
+  border-bottom:1px solid var(--border);padding:14px 18px;
+  display:flex;align-items:center;gap:12px;backdrop-filter:blur(12px)}
+.logo{font-family:var(--mo);font-size:15px;font-weight:700;color:#fff;flex:1;letter-spacing:.04em}
+.logo span{color:var(--b)}
+.hbtn{height:36px;padding:0 14px;border-radius:8px;border:none;font-family:var(--mo);font-size:10px;font-weight:700;letter-spacing:.05em;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s;background:rgba(255,255,255,.07);color:rgba(255,255,255,.7);border:1px solid var(--border)}
+.hbtn:hover{background:rgba(255,255,255,.12)}
+
+.wrap{max-width:640px;margin:0 auto;padding:16px 16px 100px}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px}
+.card-t{font-size:14px;font-weight:700;color:#fff;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card-t .n{width:20px;height:20px;border-radius:50%;background:var(--b);color:#0a0c12;font-family:var(--mo);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+@media(max-width:480px){.row{grid-template-columns:1fr}}
+.field{margin-bottom:10px}
+.field:last-child{margin-bottom:0}
+.hint{font-family:var(--mo);font-size:9px;color:var(--muted);margin-top:4px}
+.err{font-family:var(--mo);font-size:9px;color:var(--r);margin-top:4px;display:none}
+.field.invalid select,.field.invalid input,.field.invalid textarea,.field.invalid .ddown-btn{border-color:var(--r)}
+.field.invalid .err{display:block}
+
+select:disabled{opacity:.35;cursor:not-allowed}
+
+.link-suggest{background:none;border:none;color:var(--b);font-family:var(--mo);font-size:9px;letter-spacing:.03em;padding:0;margin-top:6px;cursor:pointer;text-align:left}
+.link-suggest:hover{text-decoration:underline}
+.link-suggest:disabled{color:var(--muted);cursor:not-allowed;text-decoration:none}
+.suggest-box{margin-top:8px;padding:10px;background:rgba(91,184,245,.06);border:1px solid rgba(91,184,245,.2);border-radius:10px}
+.suggest-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.suggest-chip{background:rgba(91,184,245,.14);border:1px solid rgba(91,184,245,.35);color:var(--b);
+  font-family:var(--mo);font-size:10px;letter-spacing:.02em;padding:6px 10px;border-radius:20px;cursor:pointer;transition:background .15s}
+.suggest-chip:hover{background:rgba(91,184,245,.26)}
+.suggest-chip .pct{opacity:.6;margin-left:4px}
+.suggest-empty{font-family:var(--mo);font-size:9px;color:var(--muted);margin-top:8px;line-height:1.6}
+
+.ddown{position:relative}
+.ddown-btn{background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;color:var(--text);
+  font-family:inherit;font-size:14px;padding:10px 12px;width:100%;outline:none;transition:border-color .15s;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left}
+.ddown-btn:focus{border-color:rgba(91,184,245,.5)}
+.ddown-btn:disabled{opacity:.35;cursor:not-allowed}
+.ddown-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.ddown.has-value .ddown-label{color:var(--text)}
+.ddown-arrow{flex-shrink:0;font-size:11px;color:var(--muted);transition:transform .15s}
+.ddown.open .ddown-arrow{transform:rotate(180deg)}
+.ddown-panel{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:100;
+  background:rgba(17,21,32,.99);border:1px solid var(--border);border-radius:10px;
+  max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.ddown.open .ddown-panel{display:block}
+.ddown-opt{padding:10px 12px;font-size:13px;color:var(--text);cursor:pointer}
+.ddown-opt:hover{background:rgba(91,184,245,.12)}
+.ddown-opt.selected{background:rgba(91,184,245,.18);color:var(--b);font-weight:700}
+.ddown-opt-suggest{font-style:italic;color:var(--b);border-top:1px solid var(--border);margin-top:2px}
+
+.photo-strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.photo-thumb{position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-thumb .rm{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;font-size:10px;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.photo-add{width:64px;height:64px;border-radius:8px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--muted);cursor:pointer;flex-shrink:0}
+.photo-add:hover{border-color:rgba(91,184,245,.5);color:var(--b)}
+
+.btn-add{width:100%;background:var(--r);color:#fff;border:none;border-radius:9px;padding:13px;font-family:var(--mo);font-size:11px;font-weight:700;letter-spacing:.05em;margin-top:14px;transition:opacity .15s}
+.btn-add:hover{opacity:.85}
+
+.req-item{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start}
+.req-item .idx{width:22px;height:22px;border-radius:50%;background:rgba(91,184,245,.15);color:var(--b);font-family:var(--mo);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.req-item .body{flex:1;min-width:0}
+.req-item .path{font-family:var(--mo);font-size:9px;color:var(--muted);letter-spacing:.03em;margin-bottom:3px;word-break:break-word}
+.req-item .prob{font-size:13px;color:#fff;font-weight:700}
+.req-item .desc{font-size:12px;color:rgba(255,255,255,.6);margin-top:4px;line-height:1.4}
+.req-item .thumbs{display:flex;gap:5px;margin-top:8px}
+.req-item .thumbs img{width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border)}
+.req-item .del{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;flex-shrink:0}
+.req-item .del:hover{color:var(--r)}
+
+.empty-mini{text-align:center;padding:24px 10px;font-family:var(--mo);font-size:10px;color:var(--muted);line-height:1.7}
+
+.summary-bar{position:fixed;bottom:0;left:0;right:0;z-index:60;background:rgba(10,12,18,.97);
+  border-top:1px solid var(--border);padding:12px 16px;backdrop-filter:blur(12px);
+  display:flex;align-items:center;gap:12px}
+.summary-bar .count{font-family:var(--mo);font-size:10px;color:var(--muted);flex-shrink:0}
+.summary-bar .count b{color:#fff;font-size:14px}
+.summary-bar .send{flex:1;background:var(--b);color:#0a0c12;border:none;border-radius:9px;padding:13px;font-family:var(--mo);font-size:11px;font-weight:700;letter-spacing:.05em}
+.summary-bar .send:disabled{opacity:.3;cursor:not-allowed}
+
+.modal-bg{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-bg.open{opacity:1;pointer-events:all}
+.modal{background:rgba(11,14,22,.99);border-radius:18px 18px 0 0;width:100%;max-width:480px;
+  padding:20px 22px 32px;transform:translateY(30px);transition:transform .3s cubic-bezier(.4,0,.2,1);
+  border-top:1px solid var(--border);backdrop-filter:blur(18px);max-height:85vh;overflow-y:auto}
+.modal-bg.open .modal{transform:translateY(0)}
+.modal-handle{width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.15);margin:0 auto 18px}
+.modal-t{font-size:17px;font-weight:700;color:#fff;margin-bottom:6px}
+.modal-s{font-family:var(--mo);font-size:9px;color:rgba(255,255,255,.35);margin-bottom:20px;line-height:1.7}
+.modal-row{display:flex;gap:10px;margin-top:14px}
+.modal-btn{flex:1;padding:13px;border-radius:10px;border:none;font-family:var(--mo);font-size:10px;font-weight:700;letter-spacing:.05em;cursor:pointer}
+.modal-btn-p{background:var(--b);color:#0a0c12}
+.modal-btn-g{background:rgba(255,255,255,.07);color:rgba(255,255,255,.6);border:1px solid var(--border)}
+.folio{font-family:var(--mo);font-size:22px;font-weight:700;color:var(--g);text-align:center;margin:16px 0;letter-spacing:.05em}
+
+.history-item{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer}
+.history-item:hover{border-color:rgba(91,184,245,.3)}
+.history-item .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.history-item .folio-s{font-family:var(--mo);font-size:11px;font-weight:700;color:var(--b)}
+.history-item .date{font-family:var(--mo);font-size:9px;color:var(--muted)}
+.history-item .proj{font-size:12px;color:rgba(255,255,255,.7)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Post<span>venta</span></div>
+  <button class="hbtn" id="btn-feedback" onclick="openFeedback()" style="display:none">🧠 Aprendizaje <span id="feedback-count"></span></button>
+  <button class="hbtn" onclick="openHistory()">📋 Mis solicitudes</button>
+</header>
+
+<div class="wrap">
+
+  <div class="card">
+    <div class="card-t"><span class="n">1</span> Agregar requerimiento</div>
+
+    <div class="row">
+      <div class="field" id="f-tipo">
+        <label>Tipo *</label>
+        <div class="ddown" id="dd-tipo">
+          <button type="button" class="ddown-btn" onclick="toggleDropdown('tipo')">
+            <span class="ddown-label" id="dd-tipo-label">Selecciona un tipo…</span>
+            <span class="ddown-arrow">▾</span>
+          </button>
+          <div class="ddown-panel" id="dd-tipo-panel"></div>
+        </div>
+        <div class="err">Selecciona un tipo</div>
+      </div>
+      <div class="field" id="f-condicion">
+        <label>Condición *</label>
+        <div class="ddown" id="dd-condicion" data-disabled="true">
+          <button type="button" class="ddown-btn" onclick="toggleDropdown('condicion')" disabled>
+            <span class="ddown-label" id="dd-condicion-label">Selecciona un tipo primero…</span>
+            <span class="ddown-arrow">▾</span>
+          </button>
+          <div class="ddown-panel" id="dd-condicion-panel"></div>
+        </div>
+        <div class="err">Selecciona una condición</div>
+      </div>
+    </div>
+
+    <div class="field" id="f-recinto">
+      <label>Recinto *</label>
+      <div class="ddown" id="dd-recinto" data-disabled="true">
+        <button type="button" class="ddown-btn" onclick="toggleDropdown('recinto')" disabled>
+          <span class="ddown-label" id="dd-recinto-label">Selecciona una condición primero…</span>
+          <span class="ddown-arrow">▾</span>
+        </button>
+        <div class="ddown-panel" id="dd-recinto-panel"></div>
+      </div>
+      <div class="err">Selecciona un recinto</div>
+      <div class="suggest-box" id="suggest-box-recinto" hidden>
+        <textarea id="suggest-text-recinto" rows="2" placeholder="Describe dónde está… ej. «el dormitorio principal del segundo piso»" oninput="onSuggestInput('recinto')" onblur="onSuggestBlur('recinto')"></textarea>
+        <div class="suggest-chips" id="suggest-chips-recinto"></div>
+        <div class="suggest-empty" id="suggest-empty-recinto" hidden>No encontramos una coincidencia clara. Selecciona el recinto manualmente.</div>
+        <button type="button" class="link-suggest" onclick="resetSuggestBox('recinto')">✕ Cancelar y volver al listado</button>
+      </div>
+    </div>
+
+    <div class="field" id="f-lugar">
+      <label>Lugar *</label>
+      <div class="ddown" id="dd-lugar" data-disabled="true">
+        <button type="button" class="ddown-btn" onclick="toggleDropdown('lugar')" disabled>
+          <span class="ddown-label" id="dd-lugar-label">Selecciona un recinto primero…</span>
+          <span class="ddown-arrow">▾</span>
+        </button>
+        <div class="ddown-panel" id="dd-lugar-panel"></div>
+      </div>
+      <div class="err">Selecciona un lugar</div>
+      <div class="suggest-box" id="suggest-box-lugar" hidden>
+        <textarea id="suggest-text-lugar" rows="2" placeholder="Describe el problema con tus palabras… ej. «se filtra agua de la llave de la cocina»" oninput="onSuggestInput('lugar')" onblur="onSuggestBlur('lugar')"></textarea>
+        <div class="suggest-chips" id="suggest-chips-lugar"></div>
+        <div class="suggest-empty" id="suggest-empty-lugar" hidden>No encontramos una coincidencia clara para este recinto. Selecciona el lugar manualmente.</div>
+        <button type="button" class="link-suggest" onclick="resetSuggestBox('lugar')">✕ Cancelar y volver al listado</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field" id="f-item">
+        <label>Ítem *</label>
+        <div class="ddown" id="dd-item" data-disabled="true">
+          <button type="button" class="ddown-btn" onclick="toggleDropdown('item')" disabled>
+            <span class="ddown-label" id="dd-item-label">Selecciona un lugar primero…</span>
+            <span class="ddown-arrow">▾</span>
+          </button>
+          <div class="ddown-panel" id="dd-item-panel"></div>
+        </div>
+        <div class="err">Selecciona un ítem</div>
+        <div class="suggest-box" id="suggest-box-item" hidden>
+          <textarea id="suggest-text-item" rows="2" placeholder="Describe la pieza o elemento… ej. «la manilla de la puerta corredera»" oninput="onSuggestInput('item')" onblur="onSuggestBlur('item')"></textarea>
+          <div class="suggest-chips" id="suggest-chips-item"></div>
+          <div class="suggest-empty" id="suggest-empty-item" hidden>No encontramos una coincidencia clara. Selecciona el ítem manualmente.</div>
+          <button type="button" class="link-suggest" onclick="resetSuggestBox('item')">✕ Cancelar y volver al listado</button>
+        </div>
+      </div>
+      <div class="field" id="f-problema">
+        <label>Problema *</label>
+        <div class="ddown" id="dd-problema" data-disabled="true">
+          <button type="button" class="ddown-btn" onclick="toggleDropdown('problema')" disabled>
+            <span class="ddown-label" id="dd-problema-label">Selecciona un ítem primero…</span>
+            <span class="ddown-arrow">▾</span>
+          </button>
+          <div class="ddown-panel" id="dd-problema-panel"></div>
+        </div>
+        <div class="err">Selecciona un problema</div>
+        <div class="suggest-box" id="suggest-box-problema" hidden>
+          <textarea id="suggest-text-problema" rows="2" placeholder="Describe qué le pasa… ej. «está suelta y hace ruido»" oninput="onSuggestInput('problema')" onblur="onSuggestBlur('problema')"></textarea>
+          <div class="suggest-chips" id="suggest-chips-problema"></div>
+          <div class="suggest-empty" id="suggest-empty-problema" hidden>No encontramos una coincidencia clara. Selecciona el problema manualmente.</div>
+          <button type="button" class="link-suggest" onclick="resetSuggestBox('problema')">✕ Cancelar y volver al listado</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="field" id="f-desc">
+      <label>Descripción *</label>
+      <textarea id="in-desc" rows="3" placeholder="Describe el problema con el mayor detalle posible…"></textarea>
+      <div class="err">Describe el problema</div>
+    </div>
+
+    <div class="field">
+      <label>Fotos (opcional)</label>
+      <div class="photo-strip" id="photo-strip">
+        <div class="photo-add" onclick="document.getElementById('photo-input').click()">📷</div>
+      </div>
+      <input type="file" id="photo-input" accept="image/*" multiple capture="environment" style="display:none" onchange="onPhotosSelected(event)">
+      <div class="hint">Las imágenes se comprimen automáticamente antes de guardarse.</div>
+    </div>
+
+    <button class="btn-add" onclick="addRequerimiento()">＋ Agregar requerimiento</button>
+  </div>
+
+  <div class="card" id="lista-card" style="display:none">
+    <div class="card-t"><span class="n">2</span> Requerimientos agregados</div>
+    <div id="req-list"></div>
+  </div>
+
+  <div class="card" id="empty-card">
+    <div class="empty-mini">Aún no has agregado ningún requerimiento.<br>Completa el formulario de arriba y presiona «Agregar requerimiento».</div>
+  </div>
+
+</div>
+
+<div class="summary-bar">
+  <div class="count"><b id="req-count">0</b> req.</div>
+  <button class="send" id="btn-send" onclick="openConfirm()" disabled>Enviar solicitud</button>
+</div>
+
+<!-- Confirm modal -->
+<div class="modal-bg" id="confirm-modal" onclick="closeConfirm()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-t">Confirmar envío</div>
+    <div class="modal-s" id="confirm-summary"></div>
+    <div class="modal-row">
+      <button class="modal-btn modal-btn-g" onclick="closeConfirm()">Revisar</button>
+      <button class="modal-btn modal-btn-p" onclick="sendSolicitud()">Enviar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Done modal -->
+<div class="modal-bg" id="done-modal">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-t">¡Solicitud enviada!</div>
+    <div class="modal-s">Tu número de folio es:</div>
+    <div class="folio" id="done-folio"></div>
+    <div class="modal-s">Guarda este folio para hacer seguimiento. También quedó guardado en «Mis solicitudes» en este dispositivo.</div>
+    <div class="modal-row">
+      <button class="modal-btn modal-btn-g" onclick="closeDoneAndDownload()">⬇ Descargar</button>
+      <button class="modal-btn modal-btn-p" onclick="closeDoneAndReset()">Listo</button>
+    </div>
+  </div>
+</div>
+
+<!-- History modal -->
+<div class="modal-bg" id="history-modal" onclick="closeHistory()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-t">📋 Mis solicitudes</div>
+    <div class="modal-s">Solicitudes enviadas desde este dispositivo.</div>
+    <div id="history-list"></div>
+    <div class="modal-row">
+      <button class="modal-btn modal-btn-g" onclick="closeHistory()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Feedback modal -->
+<div class="modal-bg" id="feedback-modal" onclick="closeFeedback()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-t">🧠 Descripciones sin clasificar</div>
+    <div class="modal-s">Textos que no encontraron una coincidencia clara en el árbol, guardados en este dispositivo. Sirven para detectar recintos, lugares, ítems o problemas que falta incorporar.</div>
+    <div id="feedback-list"></div>
+    <div class="modal-row">
+      <button class="modal-btn modal-btn-g" onclick="copyFeedbackJson()">Copiar JSON</button>
+      <button class="modal-btn modal-btn-p" onclick="closeFeedback()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const LS={
+  get:(k,d=null)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+};
+
+let tt_=null;
+function toast(m){
+  const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');
+  if(tt_)clearTimeout(tt_);tt_=setTimeout(()=>t.classList.remove('on'),2800);
+}
+
+let ARBOL={};
+let CATALOGO=[];
+let requerimientos=[];
+let pendingPhotos=[];
+const selected={tipo:'',condicion:'',recinto:'',lugar:'',item:'',problema:''};
+const PLACEHOLDERS={
+  tipo:'Selecciona un tipo…',
+  condicion:'Selecciona un tipo primero…',
+  recinto:'Selecciona una condición primero…',
+  lugar:'Selecciona un recinto primero…',
+  item:'Selecciona un lugar primero…',
+  problema:'Selecciona un ítem primero…'
+};
+
+fetch('data/postventa-arbol.json').then(r=>r.json()).then(data=>{
+  ARBOL=data.arbol;
+  CATALOGO=data.catalogo;
+  setDropdownOptions('tipo',Object.keys(ARBOL),PLACEHOLDERS.tipo);
+}).catch(()=>toast('No se pudo cargar el catálogo de recintos'));
+
+let MODELO=null;
+fetch('data/postventa-modelo.json').then(r=>r.json()).then(data=>{ MODELO=data; }).catch(()=>{});
+
+// --- Clasificador texto libre -> categoría (TF-IDF + LinearSVC entrenado sobre tickets reales) ---
+const CATEGORIA_TO_ITEMS={
+  'CAÑERÍAS / AGUA / GRIFERÍA':['GRIFERIA','AGUA POTABLE'],
+  'COCINA / ARTEFACTOS DE COCINA':['KIT COCINA'],
+  'ELÉCTRICO / ILUMINACIÓN / ENCHUFES / INTERRUPTORES':['ILUMINACION','RED ELECTRICA'],
+  'VENTANAS / VIDRIOS / MAMPARAS / CRISTALES':['VENTANA / MAMPARA'],
+  'QUINCALLERÍA INTERIOR':['PUERTA','MOBILIARIO'],
+  'PUERTAS Y MARCOS':['PUERTA'],
+  'AGUA CALIENTE':['AGUA CALIENTE'],
+  'PISOS / PAVIMENTOS':['PAVIMENTO'],
+  'CITÓFONO / CABLEADO DE DATOS / CONTROL DE ACCESO':['CORRIENTES DEBILES / TI','SEGURIDAD Y CONTROL ACCESO'],
+  'AIRE ACONDICIONADO':['CLIMATIZACION'],
+  'MOBILIARIO / CLOSETS / MELAMINAS / REPISAS / BARANDAS':['MOBILIARIO','BARANDA / PASAMANOS'],
+  'ASCENSORES':['ASCENSOR'],
+  'IMPERMEABILIZACIÓN / TECHUMBRE':['CUBIERTA / TECHUMBRE'],
+  'CALEFACCIÓN':['CLIMATIZACION'],
+  'ALCANTARILLADO':['ALCANTARILLADO'],
+  'CERRADURA INTELIGENTE':['PUERTA'],
+  'OTROS':[],'HUMEDAD / FILTRACIONES':[],'PINTURAS':[],
+};
+const TOKEN_RE=/[\p{L}\p{N}_]{2,}/gu;
+function tokenize(text){return (text.toLowerCase().match(TOKEN_RE))||[]}
+function buildNgrams(tokens,stopwordSet,nMin,nMax){
+  const filtered=tokens.filter(t=>!stopwordSet.has(t));
+  const ngrams=[];
+  for(let n=nMin;n<=nMax;n++){
+    for(let i=0;i+n<=filtered.length;i++)ngrams.push(filtered.slice(i,i+n).join(' '));
+  }
+  return ngrams;
+}
+function vectorizeText(text,model){
+  const stopwordSet=new Set(model.stopwords);
+  const tokens=tokenize(text);
+  const ngrams=buildNgrams(tokens,stopwordSet,model.ngram_min,model.ngram_max);
+  const counts=new Map();
+  for(const g of ngrams){
+    if(g in model.vocab){const idx=model.vocab[g];counts.set(idx,(counts.get(idx)||0)+1)}
+  }
+  let sumsq=0;const tfidf=new Map();
+  for(const [idx,tf] of counts){const v=tf*model.idf[idx];tfidf.set(idx,v);sumsq+=v*v}
+  const norm=Math.sqrt(sumsq)||1;
+  for(const [idx,v] of tfidf)tfidf.set(idx,v/norm);
+  return tfidf;
+}
+function classifyText(text,model){
+  const vec=vectorizeText(text,model);
+  const scores=model.classes.map((_,c)=>{
+    let s=model.intercept[c];
+    for(const [idx,v] of vec)s+=v*model.coef[c][idx];
+    return s;
+  });
+  const maxS=Math.max(...scores);
+  const exps=scores.map(s=>Math.exp(s-maxS));
+  const sumExp=exps.reduce((a,b)=>a+b,0);
+  const softmax=exps.map(e=>e/sumExp);
+  return model.classes.map((label,i)=>({label,score:scores[i],pct:softmax[i]})).sort((a,b)=>b.score-a.score);
+}
+
+function matchLugarML(text,candidates){
+  if(!MODELO)return [];
+  const ranked=classifyText(text,MODELO);
+  const results=[];
+  const seen=new Set();
+  for(const r of ranked){
+    const lugares=CATEGORIA_TO_ITEMS[r.label]||[];
+    for(const lugar of lugares){
+      if(candidates.includes(lugar)&&!seen.has(lugar)){
+        seen.add(lugar);
+        results.push({label:lugar,pct:r.pct});
+      }
+    }
+  }
+  return results;
+}
+
+// --- Coincidencia por solapamiento de palabras (Recinto e Ítem: sin modelo entrenado, se compara contra las etiquetas disponibles) ---
+function normalizeForMatch(s){
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9\s]/g,' ').trim();
+}
+function matchFuzzyCandidates(text,candidates){
+  const qTokens=[...new Set(normalizeForMatch(text).split(/\s+/).filter(t=>t.length>=3))];
+  if(!qTokens.length)return [];
+  const results=candidates.map(c=>{
+    const cTokens=normalizeForMatch(c).split(/\s+/).filter(Boolean);
+    let overlap=0;
+    for(const t of qTokens){
+      if(cTokens.some(ct=>ct===t||ct.startsWith(t)||t.startsWith(ct)))overlap+=1;
+    }
+    return {label:c,pct:overlap/qTokens.length};
+  }).filter(r=>r.pct>0);
+  results.sort((a,b)=>b.pct-a.pct);
+  return results;
+}
+
+// --- Detector de código de Problema por palabras clave (reglas, sin modelo entrenado) ---
+const PROBLEMA_KEYWORDS={
+  1:/defectuos\w*|mala calidad|viene mal\w*|falla de f\w*brica|da[ñn]ad\w*/i,
+  2:/mal instalad\w*|instalaci\w*n deficiente|mal puest\w*/i,
+  3:/fijaci\w*n|mal fijad\w*|sin fijar/i,
+  4:/no instalad\w*|falta instalar|sin instalar|no (lo|la) instalaron/i,
+  5:/incomplet\w*|falta\w* (pieza|parte)|le falta/i,
+  6:/desplazad\w*|movid\w* de lugar|corrid\w*/i,
+  7:/desnivelad\w*|desaplomad\w*|torcid\w*|chuec\w*/i,
+  8:/descuadrad\w*/i,
+  9:/deformad\w*|abollad\w*|hundid\w*/i,
+  10:/desajustad\w*|mal ajustad\w*/i,
+  11:/\bcort[oa]\b(?!\s*circuito)/i,
+  12:/\bsuelt\w*/i,
+  13:/desprendid\w*|se cay\w*|ca[ií]d\w*|despegad\w*/i,
+  14:/soplad\w*|con burbuja/i,
+  15:/\bpegad\w*\b(?! con)/i,
+  16:/trancad\w*|atascad\w*|atorad\w*/i,
+  17:/detenid\w*|se detiene|dej\w* de moverse/i,
+  18:/\brot[oa]\b|quebrad\w*|partid\w*|romp\w*/i,
+  19:/fisur\w*|trizad\w*|rajad\w*|grieta\w*/i,
+  20:/picad\w*|piquete\w*/i,
+  21:/desgastad\w*|deteriorad\w*|gastad\w*|rayad\w*|ara[ñn]ad\w*/i,
+  22:/tapad\w*|obstruid\w*|bloquead\w*|estancad\w*|no baja el? ?agua/i,
+  23:/vac[ií]o\w*/i,
+  24:/oxidad\w*|\w*xido\w*|herrumbr\w*/i,
+  25:/manchad\w*|decolorad\w*|\bmancha\w*/i,
+  26:/englobad\w*|burbuj\w*/i,
+  27:/quemad\w*|recalentad\w*|se quema/i,
+  28:/no funciona|no prende|no enciende|no sirve|dej\w* de funcionar/i,
+  29:/sin energ\w*|sin luz\b|sin corriente|se (fue|corta) la? luz/i,
+  30:/corto\s*circuito|cortocircuito|se bota el autom\w*tico|salta el diferencial|arco el\w*ctrico/i,
+  31:/filtr\w*|gotea\w*|goter\w*|\bfuga\w*|pierde agua|bota agua|chorre\w*/i,
+  32:/humedad\w*/i,
+  33:/condensaci\w*n|empa[ñn]\w*/i,
+  34:/hongo\w*|moho\w*/i,
+  35:/mal olor|huele mal|olor a\b/i,
+  36:/baja presi\w*n|poca presi\w*n|sin presi\w*n/i,
+  37:/sin agua\b|no sale agua|no hay agua\b/i,
+  38:/no calienta|agua fr\w*a|sin agua caliente|no hay agua caliente/i,
+  39:/ruido\w*|hace ruido|suena\b/i,
+  40:/inundaci\w*n|se inunda|aposamiento|encharcad\w*|agua aposada|apozad\w*/i,
+  41:/planta\w* sec\w*|pasto sec\w*|c[eé]sped sec\w*|jard[ií]n.{0,10}sec\w*|vegetaci\w* sec\w*/i,
+};
+const PROBLEMA_CODE_LABEL={
+  1:'01 - MATERIAL DEFECTUOSO',2:'02 - MAL INSTALADO',3:'03 - FIJACION DEFECTUOSA',4:'04 - NO INSTALADO',
+  5:'05 - INCOMPLETO',6:'06 - DESPLAZADO',7:'07 - DESNIVELADO / DESAPLOMADO',8:'08 - DESCUADRADO',
+  9:'09 - DEFORMADO / ABOLLADO',10:'10 - DESAJUSTADO',11:'11 - CORTO',12:'12 - SUELTO',
+  13:'13 - DESPRENDIDO / CAIDO',14:'14 - SOPLADO',15:'15 - PEGADO',16:'16 - TRANCADO',17:'17 - DETENIDO',
+  18:'18 - ROTO / QUEBRADO',19:'19 - FISURADO / TRIZADO / RAJADO',20:'20 - PICADO',
+  21:'21 - DESGASTADO / DETERIORADO',22:'22 - TAPADO',23:'23 - VACIO',24:'24 - OXIDADO',
+  25:'25 - MANCHADO / DECOLORADO',26:'26 - ENGLOBADO',27:'27 - QUEMADO / RECALENTADO',
+  28:'28 - NO FUNCIONA / NO PRENDE',29:'29 - SIN ENERGIA',30:'30 - CORTO CIRCUITO / CAIDA AUTOMATICO',
+  31:'31 - FILTRA / GOTEA',32:'32 - PRESENCIA DE HUMEDAD',33:'33 - CONDENSACION',34:'34 - HONGOS',
+  35:'35 - MAL OLOR',36:'36 - BAJA PRESION',37:'37 - SIN AGUA',38:'38 - NO CALIENTA',39:'39 - RUIDO ANORMAL',
+  40:'40 - APOSAMIENTO / INUNDACION',41:'41 - SECO (VEGETACION)'
+};
+function matchProblemaKeywords(text,candidates){
+  const results=[];
+  for(const code in PROBLEMA_KEYWORDS){
+    if(PROBLEMA_KEYWORDS[code].test(text)){
+      const label=PROBLEMA_CODE_LABEL[code];
+      if(candidates.includes(label))results.push({label,pct:null});
+    }
+  }
+  return results;
+}
+
+// --- Config por nivel: de dónde salen las candidatas, cuándo se habilita y qué matcher usar ---
+const SUGGEST_LEVELS={
+  recinto:{
+    minConfianza:0.3,
+    isReady:()=>!!selected.condicion,
+    getCandidates:()=>Object.keys((ARBOL[selected.tipo]||{})[selected.condicion]||{}),
+    matcher:matchFuzzyCandidates
+  },
+  lugar:{
+    minConfianza:0.12,
+    isReady:()=>!!selected.recinto,
+    getCandidates:()=>Object.keys(((ARBOL[selected.tipo]||{})[selected.condicion]||{})[selected.recinto]||{}),
+    matcher:matchLugarML
+  },
+  item:{
+    minConfianza:0.3,
+    isReady:()=>!!selected.lugar,
+    getCandidates:()=>Object.keys((((ARBOL[selected.tipo]||{})[selected.condicion]||{})[selected.recinto]||{})[selected.lugar]||{}),
+    matcher:matchFuzzyCandidates
+  },
+  problema:{
+    minConfianza:null,
+    isReady:()=>!!selected.item,
+    getCandidates:()=>{
+      const catIdx=((((ARBOL[selected.tipo]||{})[selected.condicion]||{})[selected.recinto]||{})[selected.lugar]||{})[selected.item];
+      return catIdx!==undefined?(CATALOGO[catIdx]||[]):[];
+    },
+    matcher:matchProblemaKeywords
+  }
+};
+
+const SUGGEST_LABELS={
+  recinto:'🔎 No encuentro mi recinto, descríbelo',
+  lugar:'🔎 No encuentro mi lugar, descríbelo',
+  item:'🔎 No encuentro mi ítem, descríbelo',
+  problema:'🔎 No encuentro el problema, descríbelo'
+};
+
+function resetSuggestBox(level){
+  document.getElementById('suggest-box-'+level).hidden=true;
+  document.getElementById('suggest-text-'+level).value='';
+  document.getElementById('suggest-chips-'+level).innerHTML='';
+  document.getElementById('suggest-empty-'+level).hidden=true;
+}
+function resetAllSuggestBoxes(){
+  Object.keys(SUGGEST_LEVELS).forEach(resetSuggestBox);
+}
+
+function openSuggestFromDropdown(level){
+  const dd=document.getElementById('dd-'+level);
+  dd.classList.remove('open');
+  document.getElementById('suggest-box-'+level).hidden=false;
+  document.getElementById('suggest-text-'+level).focus();
+}
+
+const suggestDebounceTimers={};
+function onSuggestInput(level){
+  clearTimeout(suggestDebounceTimers[level]);
+  suggestDebounceTimers[level]=setTimeout(()=>runSuggestion(level),350);
+}
+
+function runSuggestion(level){
+  const cfg=SUGGEST_LEVELS[level];
+  const text=document.getElementById('suggest-text-'+level).value.trim();
+  const chipsEl=document.getElementById('suggest-chips-'+level);
+  const emptyEl=document.getElementById('suggest-empty-'+level);
+  chipsEl.innerHTML='';
+  emptyEl.hidden=true;
+  if(!text||!cfg.isReady())return;
+  let results=cfg.matcher(text,cfg.getCandidates());
+  if(cfg.minConfianza!=null)results=results.filter(r=>r.pct>=cfg.minConfianza);
+  if(!results.length){emptyEl.hidden=false;return}
+  results.slice(0,3).forEach(r=>{
+    const chip=document.createElement('button');
+    chip.type='button';
+    chip.className='suggest-chip';
+    chip.innerHTML=escapeHtml(r.label)+(r.pct!=null?' <span class="pct">'+Math.round(r.pct*100)+'%</span>':'');
+    chip.addEventListener('click',()=>selectSuggestedOption(level,r.label));
+    chipsEl.appendChild(chip);
+  });
+}
+
+function onSuggestBlur(level){
+  setTimeout(()=>{
+    const emptyEl=document.getElementById('suggest-empty-'+level);
+    const text=document.getElementById('suggest-text-'+level).value.trim();
+    if(emptyEl&&!emptyEl.hidden&&text)logUnmatchedFeedback(level,text);
+  },200);
+}
+
+function selectSuggestedOption(level,value){
+  selectDropdownOption(level,value);
+}
+
+function logUnmatchedFeedback(level,text){
+  const entry={
+    ts:new Date().toISOString(),
+    nivel:level,
+    texto:text,
+    contexto:{tipo:selected.tipo,condicion:selected.condicion,recinto:selected.recinto,lugar:selected.lugar,item:selected.item}
+  };
+  const log=LS.get('postventa_feedback',[]);
+  const yaExiste=log.some(e=>e.nivel===entry.nivel&&e.texto===entry.texto&&JSON.stringify(e.contexto)===JSON.stringify(entry.contexto));
+  if(yaExiste)return;
+  log.unshift(entry);
+  LS.set('postventa_feedback',log);
+  updateFeedbackButton();
+}
+
+function updateFeedbackButton(){
+  const log=LS.get('postventa_feedback',[]);
+  const btn=document.getElementById('btn-feedback');
+  if(!btn)return;
+  if(log.length){
+    btn.style.display='';
+    document.getElementById('feedback-count').textContent='('+log.length+')';
+  }else{
+    btn.style.display='none';
+  }
+}
+
+function openFeedback(){
+  const log=LS.get('postventa_feedback',[]);
+  const listEl=document.getElementById('feedback-list');
+  if(!log.length){
+    listEl.innerHTML='<div class="empty-mini">Sin registros.</div>';
+  }else{
+    listEl.innerHTML=log.map(e=>{
+      const ruta=[e.contexto.tipo,e.contexto.condicion,e.contexto.recinto,e.contexto.lugar,e.contexto.item].filter(Boolean).join(' › ');
+      return `
+      <div class="history-item">
+        <div class="top"><span class="folio-s">${escapeHtml(e.nivel)}</span><span class="date">${new Date(e.ts).toLocaleString()}</span></div>
+        <div class="proj">${escapeHtml(e.texto)}</div>
+        <div class="hint">${escapeHtml(ruta)}</div>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('feedback-modal').classList.add('open');
+}
+function closeFeedback(){document.getElementById('feedback-modal').classList.remove('open')}
+function copyFeedbackJson(){
+  const text=JSON.stringify(LS.get('postventa_feedback',[]),null,2);
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>toast('JSON copiado')).catch(()=>toast('No se pudo copiar'));
+  }else{
+    toast('Selecciona el texto y cópialo manualmente');
+  }
+}
+
+function setDropdownOptions(key,options,placeholder,enabled){
+  enabled=enabled===undefined?options.length>0:enabled;
+  const dd=document.getElementById('dd-'+key);
+  const btn=dd.querySelector('.ddown-btn');
+  const panel=document.getElementById('dd-'+key+'-panel');
+  btn.disabled=!enabled;
+  dd.dataset.disabled=(!enabled).toString();
+  panel.innerHTML='';
+  options.slice().sort().forEach(o=>{
+    const opt=document.createElement('div');
+    opt.className='ddown-opt'+(o===selected[key]?' selected':'');
+    opt.textContent=o;
+    opt.addEventListener('click',()=>selectDropdownOption(key,o));
+    panel.appendChild(opt);
+  });
+  if(enabled&&SUGGEST_LABELS[key]){
+    const opt=document.createElement('div');
+    opt.className='ddown-opt ddown-opt-suggest';
+    opt.textContent=SUGGEST_LABELS[key];
+    opt.addEventListener('click',()=>openSuggestFromDropdown(key));
+    panel.appendChild(opt);
+  }
+  if(!enabled||!options.includes(selected[key])){
+    selected[key]='';
+    document.getElementById('dd-'+key+'-label').textContent=placeholder;
+    dd.classList.remove('has-value');
+  }
+}
+
+function toggleDropdown(key){
+  const dd=document.getElementById('dd-'+key);
+  if(dd.dataset.disabled==='true')return;
+  const willOpen=!dd.classList.contains('open');
+  document.querySelectorAll('.ddown.open').forEach(d=>d.classList.remove('open'));
+  if(willOpen)dd.classList.add('open');
+}
+
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.ddown'))document.querySelectorAll('.ddown.open').forEach(d=>d.classList.remove('open'));
+});
+
+function selectDropdownOption(key,value){
+  selected[key]=value;
+  const dd=document.getElementById('dd-'+key);
+  dd.classList.remove('open');
+  dd.classList.add('has-value');
+  document.getElementById('dd-'+key+'-label').textContent=value;
+  clearField('f-'+key);
+  if(key==='tipo'){
+    setDropdownOptions('condicion',Object.keys(ARBOL[value]||{}),PLACEHOLDERS.condicion);
+    setDropdownOptions('recinto',[],PLACEHOLDERS.recinto,false);
+    setDropdownOptions('lugar',[],PLACEHOLDERS.lugar,false);
+    setDropdownOptions('item',[],PLACEHOLDERS.item,false);
+    setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+  }else if(key==='condicion'){
+    setDropdownOptions('recinto',Object.keys(ARBOL[selected.tipo][value]||{}),PLACEHOLDERS.recinto);
+    setDropdownOptions('lugar',[],PLACEHOLDERS.lugar,false);
+    setDropdownOptions('item',[],PLACEHOLDERS.item,false);
+    setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+  }else if(key==='recinto'){
+    const lugares=Object.keys(ARBOL[selected.tipo][selected.condicion][value]||{});
+    setDropdownOptions('lugar',lugares,PLACEHOLDERS.lugar);
+    setDropdownOptions('item',[],PLACEHOLDERS.item,false);
+    setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+  }else if(key==='lugar'){
+    const items=ARBOL[selected.tipo][selected.condicion][selected.recinto][value]||{};
+    setDropdownOptions('item',Object.keys(items),PLACEHOLDERS.item);
+    setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+  }else if(key==='item'){
+    const catIdx=ARBOL[selected.tipo][selected.condicion][selected.recinto][selected.lugar][value];
+    setDropdownOptions('problema',CATALOGO[catIdx]||[],PLACEHOLDERS.problema);
+  }
+  resetAllSuggestBoxes();
+}
+
+function resetDropdowns(){
+  setDropdownOptions('tipo',Object.keys(ARBOL),PLACEHOLDERS.tipo);
+  setDropdownOptions('condicion',[],PLACEHOLDERS.condicion,false);
+  setDropdownOptions('recinto',[],PLACEHOLDERS.recinto,false);
+  setDropdownOptions('lugar',[],PLACEHOLDERS.lugar,false);
+  setDropdownOptions('item',[],PLACEHOLDERS.item,false);
+  setDropdownOptions('problema',[],PLACEHOLDERS.problema,false);
+  resetAllSuggestBoxes();
+}
+
+function clearField(id){document.getElementById(id).classList.remove('invalid')}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function onPhotosSelected(ev){
+  const files=Array.from(ev.target.files||[]);
+  ev.target.value='';
+  files.forEach(f=>{
+    const img=new Image();
+    const reader=new FileReader();
+    reader.onload=e=>{
+      img.onload=()=>{
+        const maxW=900;
+        const scale=Math.min(1,maxW/img.width);
+        const canvas=document.createElement('canvas');
+        canvas.width=img.width*scale;canvas.height=img.height*scale;
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        const dataUrl=canvas.toDataURL('image/jpeg',0.72);
+        pendingPhotos.push(dataUrl);
+        renderPhotoStrip();
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
+function renderPhotoStrip(){
+  const strip=document.getElementById('photo-strip');
+  strip.innerHTML=pendingPhotos.map((p,i)=>`
+    <div class="photo-thumb"><img src="${p}"><button class="rm" onclick="removePendingPhoto(${i})">✕</button></div>
+  `).join('')+`<div class="photo-add" onclick="document.getElementById('photo-input').click()">📷</div>`;
+}
+function removePendingPhoto(i){pendingPhotos.splice(i,1);renderPhotoStrip()}
+
+function validateReqForm(){
+  let ok=true;
+  ['tipo','condicion','recinto','lugar','item','problema'].forEach(key=>{
+    const valid=!!selected[key];
+    document.getElementById('f-'+key).classList.toggle('invalid',!valid);
+    if(!valid)ok=false;
+  });
+  const desc=document.getElementById('in-desc').value.trim();
+  document.getElementById('f-desc').classList.toggle('invalid',!desc);
+  if(!desc)ok=false;
+  return ok;
+}
+
+function addRequerimiento(){
+  if(!validateReqForm()){toast('Completa los campos obligatorios');return}
+  requerimientos.push({
+    tipo:selected.tipo,
+    condicion:selected.condicion,
+    recinto:selected.recinto,
+    lugar:selected.lugar,
+    item:selected.item,
+    problema:selected.problema,
+    descripcion:document.getElementById('in-desc').value.trim(),
+    fotos:pendingPhotos.slice()
+  });
+  resetDropdowns();
+  document.getElementById('in-desc').value='';
+  pendingPhotos=[];
+  renderPhotoStrip();
+  ['f-tipo','f-condicion','f-recinto','f-lugar','f-item','f-problema','f-desc'].forEach(clearField);
+  renderReqList();
+  toast('Requerimiento agregado');
+}
+
+function removeRequerimiento(i){
+  requerimientos.splice(i,1);
+  renderReqList();
+}
+
+function renderReqList(){
+  const listEl=document.getElementById('req-list');
+  const card=document.getElementById('lista-card');
+  const empty=document.getElementById('empty-card');
+  document.getElementById('req-count').textContent=requerimientos.length;
+  document.getElementById('btn-send').disabled=requerimientos.length===0;
+  if(!requerimientos.length){card.style.display='none';empty.style.display='';return}
+  empty.style.display='none';card.style.display='';
+  listEl.innerHTML=requerimientos.map((r,i)=>`
+    <div class="req-item">
+      <div class="idx">${i+1}</div>
+      <div class="body">
+        <div class="path">${escapeHtml(r.tipo)} · ${escapeHtml(r.condicion)} — ${escapeHtml(r.recinto)} › ${escapeHtml(r.lugar)} › ${escapeHtml(r.item)}</div>
+        <div class="prob">${escapeHtml(r.problema)}</div>
+        <div class="desc">${escapeHtml(r.descripcion)}</div>
+        ${r.fotos.length?`<div class="thumbs">${r.fotos.map(f=>`<img src="${f}">`).join('')}</div>`:''}
+      </div>
+      <button class="del" onclick="removeRequerimiento(${i})">🗑</button>
+    </div>
+  `).join('');
+}
+
+function openConfirm(){
+  if(!requerimientos.length){toast('Agrega al menos un requerimiento');return}
+  document.getElementById('confirm-summary').innerHTML=
+    `Se enviarán <b style="color:#fff">${requerimientos.length}</b> requerimiento(s) a postventa.`;
+  document.getElementById('confirm-modal').classList.add('open');
+}
+function closeConfirm(){document.getElementById('confirm-modal').classList.remove('open')}
+
+let lastFolio=null;
+function sendSolicitud(){
+  closeConfirm();
+  const folio='PV-'+Date.now().toString(36).toUpperCase();
+  const solicitud={
+    folio,
+    fecha:new Date().toISOString(),
+    requerimientos
+  };
+  const historial=LS.get('postventa_solicitudes',[]);
+  historial.unshift(solicitud);
+  LS.set('postventa_solicitudes',historial);
+  lastFolio=solicitud;
+  document.getElementById('done-folio').textContent=folio;
+  document.getElementById('done-modal').classList.add('open');
+}
+
+function closeDoneAndReset(){
+  document.getElementById('done-modal').classList.remove('open');
+  resetForm();
+}
+function closeDoneAndDownload(){
+  downloadSolicitud(lastFolio);
+}
+
+function downloadSolicitud(solicitud){
+  const blob=new Blob([JSON.stringify(solicitud,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=solicitud.folio+'.json';a.click();
+  URL.revokeObjectURL(url);
+}
+
+function resetForm(){
+  requerimientos=[];
+  pendingPhotos=[];
+  renderPhotoStrip();
+  renderReqList();
+  document.getElementById('in-desc').value='';
+  resetDropdowns();
+}
+
+let historyCache=[];
+function openHistory(){
+  historyCache=LS.get('postventa_solicitudes',[]);
+  const listEl=document.getElementById('history-list');
+  if(!historyCache.length){
+    listEl.innerHTML='<div class="empty-mini">Todavía no has enviado solicitudes.</div>';
+  }else{
+    listEl.innerHTML=historyCache.map((s,i)=>`
+      <div class="history-item" onclick="downloadSolicitud(historyCache[${i}])" title="Descargar">
+        <div class="top"><span class="folio-s">${s.folio}</span><span class="date">${new Date(s.fecha).toLocaleString()}</span></div>
+        <div class="proj">${s.requerimientos.length} requerimiento(s)</div>
+      </div>
+    `).join('');
+  }
+  document.getElementById('history-modal').classList.add('open');
+}
+function closeHistory(){document.getElementById('history-modal').classList.remove('open')}
+
+renderPhotoStrip();
+renderReqList();
+updateFeedbackButton();
+</script>
+</body>
+</html>
